@@ -3,28 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Avito Parser PRO - Mini App</title>
-  <!-- Telegram WebApp SDK -->
+  <title>Avito Parser PRO</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="app-container">
-    <!-- Header -->
     <header class="app-header">
       <div class="brand">
         <span class="icon">⚡</span>
         <div>
           <h1>Avito Parser PRO</h1>
-          <span class="subtitle">Система мониторинга объявлений</span>
+          <span class="subtitle">Мониторинг объявлений</span>
         </div>
       </div>
-      <div id="sub-badge" class="badge badge-active">🟢 Бот подключен</div>
+      <div id="sub-badge" class="badge badge-active">⏳ Загрузка...</div>
     </header>
 
-    <!-- Navigation Bar -->
+    <div id="conn-status" class="conn-badge conn-offline">⏳ Проверка...</div>
+
     <nav class="nav-tabs">
       <button class="tab-btn active" onclick="switchTab('links', this)">🎯 Ссылки</button>
       <button class="tab-btn" onclick="switchTab('filters', this)">🔍 Фильтры</button>
@@ -32,46 +30,34 @@
       <button class="tab-btn" onclick="switchTab('sub', this)">💳 Подписка</button>
     </nav>
 
-    <!-- Tab 1: Links & Prices -->
+    <!-- Ссылки -->
     <section id="tab-links" class="tab-content active">
       <div class="card">
-        <h2>🎯 Начальные ссылки Avito</h2>
-        <label for="urls-input">Вставьте ссылки поиска Avito (по одной в строке):</label>
+        <h2>🎯 Ссылки Avito</h2>
+        <label>Ссылки поиска (по одной в строке):</label>
         <textarea id="urls-input" placeholder="https://www.avito.ru/moskva/telefony..."></textarea>
       </div>
-
       <div class="card">
-        <h2>💰 Ценовой диапазон</h2>
+        <h2>💰 Цена</h2>
         <div class="grid-2">
-          <div>
-            <label for="min-price">Мин. цена (₽):</label>
-            <input type="number" id="min-price" placeholder="0">
-          </div>
-          <div>
-            <label for="max-price">Макс. цена (₽):</label>
-            <input type="number" id="max-price" placeholder="100000">
-          </div>
+          <div><label>Мин ₽:</label><input type="number" id="min-price" placeholder="0"></div>
+          <div><label>Макс ₽:</label><input type="number" id="max-price" placeholder="100000"></div>
         </div>
       </div>
-
       <div class="card">
-        <h2>📄 Глубина парсинга</h2>
-        <label for="count-page">Страниц на каждую ссылку:</label>
+        <h2>📄 Глубина</h2>
+        <label>Страниц на ссылку:</label>
         <input type="number" id="count-page" value="1" min="1" max="10">
       </div>
     </section>
 
-    <!-- Tab 2: Filters -->
+    <!-- Фильтры -->
     <section id="tab-filters" class="tab-content">
       <div class="card">
-        <h2>⏰ Фильтр возраста объявления</h2>
+        <h2>⏰ Возраст объявления</h2>
         <div class="grid-2">
-          <div>
-            <label for="max-age">Макс. возраст:</label>
-            <input type="number" id="max-age" placeholder="0 (отключен)">
-          </div>
-          <div>
-            <label for="max-age-unit">Единицы:</label>
+          <div><label>Макс. возраст:</label><input type="number" id="max-age" placeholder="0"></div>
+          <div><label>Единицы:</label>
             <select id="max-age-unit">
               <option value="minutes">Минуты</option>
               <option value="hours">Часы</option>
@@ -80,78 +66,70 @@
           </div>
         </div>
       </div>
-
       <div class="card">
-        <h2>📦 Статус резерва / Доставки</h2>
+        <h2>📦 Резерв</h2>
         <select id="reserv-mode">
-          <option value="ignore">🚫 Игнорировать зарезервированные</option>
+          <option value="ignore">🚫 Скрыть зарезервированные</option>
           <option value="only">📌 Только зарезервированные</option>
-          <option value="all">🌐 Показывать все объявления</option>
+          <option value="all">🌐 Все</option>
         </select>
       </div>
-
       <div class="card">
-        <h2>🎯 Умные опции</h2>
+        <h2>🎯 Опции</h2>
         <div class="switch-row">
-          <span>📉 Только со скидкой / сниженной ценой</span>
+          <span>📉 Только со скидкой</span>
           <label class="switch"><input type="checkbox" id="only-discount"><span class="slider"></span></label>
         </div>
         <div class="switch-row">
-          <span>📸 Только с фотографиями</span>
+          <span>📸 Только с фото</span>
           <label class="switch"><input type="checkbox" id="only-photo"><span class="slider"></span></label>
         </div>
       </div>
-
       <div class="card">
         <h2>🔍 Ключевые слова</h2>
-        <label for="white-list">Белый список (обязательные слова):</label>
-        <textarea id="white-list" placeholder="nintendo, switch..."></textarea>
-
-        <label for="black-list" style="margin-top:10px;">Черный список (стоп-слова):</label>
-        <textarea id="black-list" placeholder="чехол, стекло, запчасти..."></textarea>
+        <label>Белый список:</label>
+        <textarea id="white-list" placeholder="iphone, macbook..."></textarea>
+        <label style="margin-top:8px">Чёрный список:</label>
+        <textarea id="black-list" placeholder="чехол, стекло..."></textarea>
       </div>
     </section>
 
-    <!-- Tab 3: Leads -->
+    <!-- Заявки -->
     <section id="tab-leads" class="tab-content">
       <div class="card">
         <div class="header-between">
-          <h2>📊 Найденные лиды</h2>
-          <button class="btn btn-secondary btn-sm" onclick="loadLeads()">🔄 Обновить</button>
+          <h2>📊 Лиды</h2>
+          <button class="btn btn-secondary btn-sm" onclick="loadLeads()">🔄</button>
         </div>
         <div id="leads-container" class="leads-list">
-          <div class="empty-state">Загрузка объявлений...</div>
+          <div class="empty-state">Нажмите 🔄 для загрузки</div>
         </div>
       </div>
     </section>
 
-    <!-- Tab 4: Subscription -->
+    <!-- Подписка -->
     <section id="tab-sub" class="tab-content">
       <div class="card text-center">
         <div class="sub-status-box">
-          <div id="sub-icon" class="status-big">🟢</div>
-          <h3 id="sub-title">Подписка активна</h3>
-          <p id="sub-desc">Активируйте промокод или обратитесь к админу для продления доступа.</p>
+          <div id="sub-icon" class="status-big">📱</div>
+          <h3 id="sub-title">Загрузка...</h3>
+          <p id="sub-desc"></p>
         </div>
       </div>
-
       <div class="card">
-        <h2>🎁 Активация промокода</h2>
-        <label for="promo-input">Введите промокод:</label>
+        <h2>🎁 Промокод</h2>
         <div class="flex-row">
-          <input type="text" id="promo-input" placeholder="например VIP30">
+          <input type="text" id="promo-input" placeholder="Введите код">
           <button class="btn btn-primary" onclick="redeemPromo()">Активировать</button>
         </div>
         <div id="promo-result" class="result-msg"></div>
       </div>
     </section>
 
-    <!-- Action Bar / Buttons -->
     <div class="action-bar">
       <button id="save-btn" class="btn btn-success flex-1" onclick="saveSettings()">💾 Сохранить настройки</button>
     </div>
   </div>
-
   <script src="app.js"></script>
 </body>
 </html>
