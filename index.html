@@ -6,7 +6,7 @@
   <title>Avito Parser PRO</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
   <div class="app-container">
@@ -21,7 +21,15 @@
       <div id="sub-badge" class="badge badge-active">⏳ Загрузка...</div>
     </header>
 
-    <div id="conn-status" class="conn-badge conn-offline">⏳ Проверка...</div>
+    <div id="pc-api-setup-bar" class="user-id-bar" style="display:none; flex-direction:column; gap:8px; align-items:stretch;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span>🔌 Сервер на ПК (API): <strong id="pc-api-status-label" style="color:var(--danger-color)">Не подключен</strong></span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="pc-api-url-input" placeholder="Вставьте адрес туннеля (https://...trycloudflare.com)" style="padding:4px 8px; font-size:12px; height:30px; margin:0;">
+        <button type="button" onclick="saveCustomApiUrl()" style="background:var(--accent-color); color:white; border:none; padding:4px 12px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:600; white-space:nowrap;">🔗 Подключить</button>
+      </div>
+    </div>
 
     <div id="user-id-bar" class="user-id-bar">
       <span>🆔 Профиль: <strong id="user-id-display">Загрузка...</strong></span>
@@ -147,6 +155,6 @@
       <button id="save-btn" class="btn btn-success flex-1" onclick="saveSettings()">💾 Сохранить настройки</button>
     </div>
   </div>
-  <script src="app.js"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
