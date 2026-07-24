@@ -229,22 +229,29 @@ function collectForm() {
   };
 }
 
+function getTargetApi() {
+  if (API_BASE !== null) return API_BASE;
+  return getApiUrlFromParams();
+}
+
 // ===== Сохранение =====
 async function saveSettings() {
   const btn = document.getElementById('save-btn');
   btn.disabled = true;
-  btn.textContent = '⏳ Передача боту на ПК...';
+  btn.textContent = '⏳ Сохранение...';
 
   const payload = collectForm();
   saveLocal(payload);
 
   let savedOnServer = false;
-  const targetApi = API_BASE || getApiUrlFromParams();
+  const targetApi = getTargetApi();
 
   // Прямой HTTP POST к боту на ПК (через Cloudflare Tunnel / Localhost)
-  if (targetApi) {
+  if (targetApi !== null) {
     try {
-      const res = await customFetch(targetApi + '/api/config', {
+      // Если targetApi это пустая строка, значит мы на localhost
+      const url = (targetApi === '') ? '/api/config' : (targetApi + '/api/config');
+      const res = await customFetch(url, {
         method: 'POST',
         body: JSON.stringify(payload)
       });
@@ -281,16 +288,17 @@ async function saveSettings() {
 // ===== Загрузка Лидов =====
 async function loadLeads() {
   const box = document.getElementById('leads-container');
-  const targetApi = API_BASE || getApiUrlFromParams();
+  const targetApi = getTargetApi();
 
-  if (!targetApi) {
+  if (targetApi === null) {
     box.innerHTML = '<div class="empty-state">📊 Заявки транслируются прямо в бот Telegram. Нажмите "📲 Подключить заявки" в меню бота.</div>';
     return;
   }
 
   box.innerHTML = '<div class="empty-state">⏳ Загрузка лидов с ПК...</div>';
   try {
-    const res = await customFetch(targetApi + '/api/leads?user_id=' + userId);
+    const url = (targetApi === '') ? ('/api/leads?user_id=' + userId) : (targetApi + '/api/leads?user_id=' + userId);
+    const res = await customFetch(url);
     const data = await res.json();
     const leads = data.leads || [];
     if (!leads.length) {
