@@ -7,8 +7,19 @@ if (tg) {
   tg.expand();
 }
 
-const userId = tg?.initDataUnsafe?.user?.id || 0;
-const userName = tg?.initDataUnsafe?.user?.first_name || '';
+function getUserIdFromParams() {
+  try {
+    const fromTg = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    if (fromTg) return parseInt(fromTg);
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromUrl = urlParams.get('user_id');
+    if (fromUrl) return parseInt(fromUrl);
+  } catch (e) {}
+  return 0;
+}
+
+const userId = getUserIdFromParams();
+const userName = window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || '';
 const STORAGE_KEY = 'avito_parser_config';
 
 let API_BASE = null; // Будет определён динамически
