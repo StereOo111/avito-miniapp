@@ -23,9 +23,14 @@
 
     <div id="conn-status" class="conn-badge conn-offline">⏳ Проверка...</div>
 
-    <div id="user-id-bar" class="user-id-bar" onclick="promptChangeUserId()" title="Нажмите для смены профиля Telegram ID">
+    <div id="user-id-bar" class="user-id-bar">
       <span>🆔 Профиль: <strong id="user-id-display">Загрузка...</strong></span>
-      <span class="edit-icon">✏️ Сменить</span>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <select id="user-selector-dropdown" class="user-dropdown-select" onchange="onUserSelectChange(this.value)" style="display:none;">
+          <option value="">-- Выберите профиль --</option>
+        </select>
+        <button id="change-user-btn" class="edit-btn" onclick="promptChangeUserId()" style="display:none; background:#334155; color:#FFF; border:none; padding:3px 8px; border-radius:4px; font-size:11px; cursor:pointer;">✏️ Ввести ID</button>
+      </div>
     </div>
 
     <nav class="nav-tabs">

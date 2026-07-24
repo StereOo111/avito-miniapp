@@ -7,22 +7,23 @@ if (tg) {
   tg.expand();
 }
 
+const isTgWebApp = !!(window.Telegram?.WebApp?.initDataUnsafe?.user?.id);
+
 function resolveUserId() {
   try {
+    // 1. Внутри Telegram на смартфоне — 100% строгая изоляция по данным Telegram SDK
     const fromTg = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
     if (fromTg) {
-      const uid = parseInt(fromTg);
-      localStorage.setItem('saved_telegram_user_id', uid);
-      return uid;
+      return parseInt(fromTg);
     }
+    // 2. В ссылке передан персональный user_id от бота
     const urlParams = new URLSearchParams(window.location.search);
     const fromUrl = urlParams.get('user_id');
     if (fromUrl) {
-      const uid = parseInt(fromUrl);
-      localStorage.setItem('saved_telegram_user_id', uid);
-      return uid;
+      return parseInt(fromUrl);
     }
-    const fromStorage = localStorage.getItem('saved_telegram_user_id');
+    // 3. Только на ПК в обычном браузере — локально выбранный аккаунт для администрирования
+    const fromStorage = localStorage.getItem('desktop_admin_selected_user_id');
     if (fromStorage) {
       return parseInt(fromStorage);
     }
@@ -34,26 +35,57 @@ let userId = resolveUserId();
 const userName = window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || '';
 const STORAGE_KEY = 'avito_parser_config';
 
-function updateUserIdDisplay() {
-  const el = document.getElementById('user-id-display');
-  if (el) {
-    el.textContent = userId ? userId : 'Не выбран (Нажмите чтобы указать)';
+async function updateUserIdDisplay() {
+  const displayEl = document.getElementById('user-id-display');
+  const dropdownEl = document.getElementById('user-selector-dropdown');
+  const changeBtn = document.getElementById('change-user-btn');
+
+  if (isTgWebApp) {
+    // На смартфоне в Telegram — строго фиксированный профиль текущего пользователя
+    if (displayEl) displayEl.textContent = userId + (userName ? ' (' + userName + ')' : '');
+    if (dropdownEl) dropdownEl.style.display = 'none';
+    if (changeBtn) changeBtn.style.display = 'none';
+  } else {
+    // На ПК в обычном браузере — админ-режим со списком пользователей
+    if (displayEl) displayEl.textContent = userId ? userId : 'Не выбран';
+    if (changeBtn) changeBtn.style.display = 'inline-block';
+
+    const targetApi = API_BASE || getApiUrlFromParams();
+    if (targetApi && dropdownEl) {
+      try {
+        const res = await customFetch(targetApi + '/api/users');
+        const data = await res.json();
+        if (data && data.ok && data.users && data.users.length) {
+          dropdownEl.innerHTML = '<option value="">-- Выберите профиль ПК --</option>';
+          data.users.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u.user_id;
+            opt.textContent = (u.first_name || u.username || 'ID ' + u.user_id) + ' (' + u.user_id + ')';
+            if (u.user_id == userId) opt.selected = true;
+            dropdownEl.appendChild(opt);
+          });
+          dropdownEl.style.display = 'inline-block';
+        }
+      } catch(e) {}
+    }
   }
 }
 
+function onUserSelectChange(val) {
+  if (!val) return;
+  const uid = parseInt(val);
+  userId = uid;
+  localStorage.setItem('desktop_admin_selected_user_id', uid);
+  loadConfig();
+}
+
 function promptChangeUserId() {
-  const input = prompt('Введите ваш Telegram ID для синхронизации настроек между Телефоном и ПК:', userId || '');
+  const input = prompt('Введите Telegram ID пользователя для просмотра на ПК:', userId || '');
   if (input !== null) {
     const uid = parseInt(input.trim());
     if (uid && !isNaN(uid)) {
       userId = uid;
-      localStorage.setItem('saved_telegram_user_id', uid);
-      updateUserIdDisplay();
-      loadConfig();
-      alert('✅ Синхронизация с Telegram ID: ' + uid + ' активирована!');
-    } else if (input.trim() === '') {
-      localStorage.removeItem('saved_telegram_user_id');
-      userId = 0;
+      localStorage.setItem('desktop_admin_selected_user_id', uid);
       updateUserIdDisplay();
       loadConfig();
     }
