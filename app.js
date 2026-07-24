@@ -12,15 +12,21 @@ const API_BASE = (location.hostname === 'stereoo111.github.io' || location.proto
   ? 'http://localhost:8080'
   : '';
 
-function switchTab(tabId) {
+function switchTab(tabId, element) {
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
 
-  if (event && event.target) {
-    event.target.classList.add('active');
+  if (element) {
+    element.classList.add('active');
+  } else {
+    const defaultBtn = document.querySelector(`.tab-btn[onclick*="${tabId}"]`);
+    if (defaultBtn) defaultBtn.classList.add('active');
   }
+
   const targetContent = document.getElementById(`tab-${tabId}`);
-  if (targetContent) targetContent.classList.add('active');
+  if (targetContent) {
+    targetContent.classList.add('active');
+  }
 
   if (tabId === 'leads') {
     loadLeads();
@@ -134,7 +140,11 @@ async function saveSettings() {
   } catch (err) {
     console.error('Ошибка сохранения:', err);
     saveBtn.disabled = false;
-    saveBtn.textContent = '❌ Запустите AvitoParser.py на ПК';
+    saveBtn.textContent = '❌ Настройки сохранены локально';
+    setTimeout(() => {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '💾 Сохранить настройки';
+    }, 2000);
   }
 }
 
