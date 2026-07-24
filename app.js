@@ -74,6 +74,15 @@ function getApiUrlFromParams() {
   return null;
 }
 
+function customFetch(url, options = {}) {
+  options.headers = Object.assign({
+    'Content-Type': 'application/json',
+    'bypass-tunnel-reminder': 'true',
+    'ngrok-skip-browser-warning': 'true'
+  }, options.headers || {});
+  return fetch(url, options);
+}
+
 // ===== Детекция подключенного сервера на ПК =====
 async function detectAPI() {
   // 1. Проверяем URL параметр api_url (переданный ботом в ссылке)
@@ -81,11 +90,14 @@ async function detectAPI() {
   if (paramApi) {
     try {
       const controller = new AbortController();
-      setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(paramApi + '/api/config?user_id=' + userId, { signal: controller.signal });
+      setTimeout(() => controller.abort(), 4000);
+      const res = await customFetch(paramApi + '/api/config?user_id=' + userId, { signal: controller.signal });
       if (res.ok) {
-        API_BASE = paramApi;
-        return;
+        const data = await res.json();
+        if (data && data.ok) {
+          API_BASE = paramApi;
+          return;
+        }
       }
     } catch (e) {
       console.warn('[MiniApp] Ошибка подключения к туннелю:', paramApi, e.message);
@@ -102,12 +114,18 @@ async function detectAPI() {
   try {
     const controller = new AbortController();
     setTimeout(() => controller.abort(), 1500);
-    const res = await fetch('http://localhost:8080/api/config?user_id=0', { signal: controller.signal });
+    const res = await customFetch('http://localhost:8080/api/config?user_id=0', { signal: controller.signal });
     if (res.ok) {
       API_BASE = 'http://localhost:8080';
       return;
     }
   } catch (e) {}
+
+  // 4. Запасной вариант — используем paramApi если он есть
+  if (paramApi) {
+    API_BASE = paramApi;
+    return;
+  }
 
   API_BASE = null; // оффлайн
 }
@@ -145,7 +163,7 @@ async function loadConfig() {
     connStatus.textContent = '🟢 Подключён к боту на ПК';
     connStatus.className = 'conn-badge conn-online';
     try {
-      const res = await fetch(API_BASE + '/api/config?user_id=' + userId);
+      const res = await customFetch(API_BASE + '/api/config?user_id=' + userId);
       const data = await res.json();
       const cfg = data.config || {};
       fillForm(cfg);
@@ -224,23 +242,23 @@ async function saveSettings() {
   saveLocal(payload);
 
   let savedOnServer = false;
+  const targetApi = API_BASE || getApiUrlFromParams();
 
-  // Способ 1: Прямой HTTP POST к боту на ПК (через Cloudflare Tunnel / Localhost)
-  if (API_BASE !== null) {
+  // Прямой HTTP POST к боту на ПК (через Cloudflare Tunnel / Localhost)
+  if (targetApi) {
     try {
-      const res = await fetch(API_BASE + '/api/config', {
+      const res = await customFetch(targetApi + '/api/config', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (data.ok) savedOnServer = true;
+      if (data && data.ok) savedOnServer = true;
     } catch(e) {
       console.warn('[MiniApp] POST error:', e.message);
     }
   }
 
-  // Способ 2: Telegram WebApp sendData (работает всегда внутри Telegram, мгновенно шлёт боту)
+  // Способ 2: Telegram WebApp sendData (если доступен в данном контексте)
   if (tg && tg.sendData) {
     try {
       tg.sendData(JSON.stringify({ action: 'save_config', ...payload }));
@@ -266,15 +284,16 @@ async function saveSettings() {
 // ===== Загрузка Лидов =====
 async function loadLeads() {
   const box = document.getElementById('leads-container');
+  const targetApi = API_BASE || getApiUrlFromParams();
 
-  if (API_BASE === null) {
+  if (!targetApi) {
     box.innerHTML = '<div class="empty-state">📊 Заявки транслируются прямо в бот Telegram. Нажмите "📲 Подключить заявки" в меню бота.</div>';
     return;
   }
 
   box.innerHTML = '<div class="empty-state">⏳ Загрузка лидов с ПК...</div>';
   try {
-    const res = await fetch(API_BASE + '/api/leads?user_id=' + userId);
+    const res = await customFetch(targetApi + '/api/leads?user_id=' + userId);
     const data = await res.json();
     const leads = data.leads || [];
     if (!leads.length) {
@@ -303,11 +322,12 @@ async function redeemPromo() {
   const code = input.value.trim();
   if (!code) return;
 
-  if (API_BASE !== null) {
+  const targetApi = API_BASE || getApiUrlFromParams();
+
+  if (targetApi) {
     try {
-      const res = await fetch(API_BASE + '/api/redeem_promo', {
+      const res = await customFetch(targetApi + '/api/redeem_promo', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({user_id: userId, code: code})
       });
       const data = await res.json();
@@ -321,7 +341,7 @@ async function redeemPromo() {
   if (tg && tg.sendData) {
     tg.sendData(JSON.stringify({ action: 'redeem_promo', user_id: userId, code: code }));
     result.style.color = '#10B981';
-    result.textContent = '⏳ Код отправлен боту...';
+    result.textContent = '🎁 Промокод отправлен боту!';
     return;
   }
 
