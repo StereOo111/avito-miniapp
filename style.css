@@ -359,9 +359,39 @@ input:checked + .slider:before {
 }
 
 .conn-offline {
-  background: rgba(59, 130, 246, 0.1);
+  background: rgba(239, 68, 68, 0.15);
+  color: #F87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.user-id-bar {
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.user-id-bar:hover {
+  background: rgba(51, 65, 85, 0.9);
+  border-color: var(--accent-color);
+  color: #FFFFFF;
+}
+.user-id-bar strong {
   color: #60A5FA;
-  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+.user-id-bar .edit-icon {
+  font-size: 11px;
+  color: #94A3B8;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 3px 8px;
+  border-radius: 4px;
 }
 
 .text-center {

@@ -23,6 +23,11 @@
 
     <div id="conn-status" class="conn-badge conn-offline">⏳ Проверка...</div>
 
+    <div id="user-id-bar" class="user-id-bar" onclick="promptChangeUserId()" title="Нажмите для смены профиля Telegram ID">
+      <span>🆔 Профиль: <strong id="user-id-display">Загрузка...</strong></span>
+      <span class="edit-icon">✏️ Сменить</span>
+    </div>
+
     <nav class="nav-tabs">
       <button class="tab-btn active" onclick="switchTab('links', this)">🎯 Ссылки</button>
       <button class="tab-btn" onclick="switchTab('filters', this)">🔍 Фильтры</button>

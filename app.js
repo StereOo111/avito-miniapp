@@ -7,20 +7,58 @@ if (tg) {
   tg.expand();
 }
 
-function getUserIdFromParams() {
+function resolveUserId() {
   try {
     const fromTg = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-    if (fromTg) return parseInt(fromTg);
+    if (fromTg) {
+      const uid = parseInt(fromTg);
+      localStorage.setItem('saved_telegram_user_id', uid);
+      return uid;
+    }
     const urlParams = new URLSearchParams(window.location.search);
     const fromUrl = urlParams.get('user_id');
-    if (fromUrl) return parseInt(fromUrl);
+    if (fromUrl) {
+      const uid = parseInt(fromUrl);
+      localStorage.setItem('saved_telegram_user_id', uid);
+      return uid;
+    }
+    const fromStorage = localStorage.getItem('saved_telegram_user_id');
+    if (fromStorage) {
+      return parseInt(fromStorage);
+    }
   } catch (e) {}
   return 0;
 }
 
-const userId = getUserIdFromParams();
+let userId = resolveUserId();
 const userName = window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || '';
 const STORAGE_KEY = 'avito_parser_config';
+
+function updateUserIdDisplay() {
+  const el = document.getElementById('user-id-display');
+  if (el) {
+    el.textContent = userId ? userId : 'Не выбран (Нажмите чтобы указать)';
+  }
+}
+
+function promptChangeUserId() {
+  const input = prompt('Введите ваш Telegram ID для синхронизации настроек между Телефоном и ПК:', userId || '');
+  if (input !== null) {
+    const uid = parseInt(input.trim());
+    if (uid && !isNaN(uid)) {
+      userId = uid;
+      localStorage.setItem('saved_telegram_user_id', uid);
+      updateUserIdDisplay();
+      loadConfig();
+      alert('✅ Синхронизация с Telegram ID: ' + uid + ' активирована!');
+    } else if (input.trim() === '') {
+      localStorage.removeItem('saved_telegram_user_id');
+      userId = 0;
+      updateUserIdDisplay();
+      loadConfig();
+    }
+  }
+}
 
 let API_BASE = null; // Будет определён динамически
 
@@ -93,6 +131,7 @@ function switchTab(tabId, el) {
 
 // ===== Загрузка конфига =====
 async function loadConfig() {
+  updateUserIdDisplay();
   await detectAPI();
 
   const badge = document.getElementById('sub-badge');
