@@ -50,10 +50,11 @@ async function updateUserIdDisplay() {
     if (displayEl) displayEl.textContent = userId ? userId : 'Не выбран';
     if (changeBtn) changeBtn.style.display = 'inline-block';
 
-    const targetApi = API_BASE || getApiUrlFromParams();
-    if (targetApi && dropdownEl) {
+    const targetApi = getTargetApi();
+    if (targetApi !== null && dropdownEl) {
       try {
-        const res = await customFetch(targetApi + '/api/users');
+        const url = (targetApi === '') ? '/api/users' : (targetApi + '/api/users');
+        const res = await customFetch(url);
         const data = await res.json();
         if (data && data.ok && data.users && data.users.length) {
           dropdownEl.innerHTML = '<option value="">-- Выберите профиль ПК --</option>';
