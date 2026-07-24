@@ -171,10 +171,11 @@ async function loadConfig() {
 
   await detectAPI();
 
-  const targetApi = API_BASE || getApiUrlFromParams();
-  if (targetApi) {
+  const targetApi = getTargetApi();
+  if (targetApi !== null) {
     try {
-      const res = await customFetch(targetApi + '/api/config?user_id=' + userId);
+      const url = (targetApi === '') ? ('/api/config?user_id=' + userId) : (targetApi + '/api/config?user_id=' + userId);
+      const res = await customFetch(url);
       if (res.ok) {
         const data = await res.json();
         const cfg = data.config || {};
