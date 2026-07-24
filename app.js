@@ -1,34 +1,68 @@
 // ===== Avito Parser PRO — Telegram Mini App =====
-// Работает автономно на GitHub Pages без бэкенда.
-// Настройки сохраняются в localStorage + отправляются боту через sendData().
+// Подключается к боту на ПК через Cloudflare Tunnel / Localhost / Telegram WebApp sendData
 
 const tg = window.Telegram?.WebApp;
-if (tg) { tg.ready(); tg.expand(); }
+if (tg) {
+  tg.ready();
+  tg.expand();
+}
 
 const userId = tg?.initDataUnsafe?.user?.id || 0;
 const userName = tg?.initDataUnsafe?.user?.first_name || '';
 const STORAGE_KEY = 'avito_parser_config';
 
-// ===== Определяем, есть ли локальный API =====
-let API_BASE = null; // null = оффлайн режим (GitHub Pages)
+let API_BASE = null; // Будет определён динамически
 
+// ===== Извлечение api_url из параметров URL или initData =====
+function getApiUrlFromParams() {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramUrl = urlParams.get('api_url');
+    if (paramUrl && (paramUrl.startsWith('https://') || paramUrl.startsWith('http://'))) {
+      return paramUrl.replace(/\/$/, '');
+    }
+  } catch (e) {}
+  return null;
+}
+
+// ===== Детекция подключенного сервера на ПК =====
 async function detectAPI() {
-  // Проверяем, доступен ли локальный сервер (только если мы на localhost)
+  // 1. Проверяем URL параметр api_url (переданный ботом в ссылке)
+  const paramApi = getApiUrlFromParams();
+  if (paramApi) {
+    try {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(paramApi + '/api/config?user_id=' + userId, { signal: controller.signal });
+      if (res.ok) {
+        API_BASE = paramApi;
+        return;
+      }
+    } catch (e) {
+      console.warn('[MiniApp] Ошибка подключения к туннелю:', paramApi, e.message);
+    }
+  }
+
+  // 2. Если открыто на самом ПК (localhost)
   if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
     API_BASE = '';
     return;
   }
-  // С GitHub Pages пробуем достучаться до localhost (работает только на том же ПК)
+
+  // 3. Попытка прямая к localhost:8080
   try {
     const controller = new AbortController();
     setTimeout(() => controller.abort(), 1500);
     const res = await fetch('http://localhost:8080/api/config?user_id=0', { signal: controller.signal });
-    if (res.ok) { API_BASE = 'http://localhost:8080'; return; }
-  } catch (e) { /* не доступен */ }
+    if (res.ok) {
+      API_BASE = 'http://localhost:8080';
+      return;
+    }
+  } catch (e) {}
+
   API_BASE = null; // оффлайн
 }
 
-// ===== localStorage =====
 function loadLocal() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e) { return {}; }
 }
@@ -57,15 +91,15 @@ async function loadConfig() {
   const connStatus = document.getElementById('conn-status');
 
   if (API_BASE !== null) {
-    // Онлайн — загружаем с сервера
-    connStatus.textContent = '🟢 Подключён к ПК';
+    // Онлайн — загружаем данные с ПК
+    connStatus.textContent = '🟢 Подключён к боту на ПК';
     connStatus.className = 'conn-badge conn-online';
     try {
       const res = await fetch(API_BASE + '/api/config?user_id=' + userId);
       const data = await res.json();
       const cfg = data.config || {};
       fillForm(cfg);
-      saveLocal(cfg); // кешируем
+      saveLocal(cfg);
 
       if (data.is_sub_active) {
         badge.textContent = '🟢 Подписка активна';
@@ -78,23 +112,23 @@ async function loadConfig() {
         badge.className = 'badge badge-inactive';
         subIcon.textContent = '🔴';
         subTitle.textContent = 'Подписка не активна';
-        subDesc.textContent = 'Активируйте промокод через бота командой /promo';
+        subDesc.textContent = 'Активируйте промокод командой /promo в боте.';
       }
     } catch(e) {
-      connStatus.textContent = '⚪ Оффлайн';
+      connStatus.textContent = '📲 Telegram Sync режим';
       connStatus.className = 'conn-badge conn-offline';
       fillForm(loadLocal());
     }
   } else {
-    // Оффлайн — загружаем из localStorage
-    connStatus.textContent = '📱 Автономный режим';
+    // Автономный режим — загружаем из локального хранилища
+    connStatus.textContent = '📲 Прямой Telegram Sync (Бот активен)';
     connStatus.className = 'conn-badge conn-offline';
     fillForm(loadLocal());
     badge.textContent = userName ? ('👋 ' + userName) : '📱 Mini App';
     badge.className = 'badge badge-active';
     subIcon.textContent = '📱';
-    subTitle.textContent = 'Автономный режим';
-    subDesc.textContent = 'Настройки сохраняются локально и отправляются боту при сохранении.';
+    subTitle.textContent = 'Синхронизация через бота';
+    subDesc.textContent = 'При сохранении настройки сразу отправляются боту на ПК.';
   }
 }
 
@@ -134,14 +168,14 @@ function collectForm() {
 async function saveSettings() {
   const btn = document.getElementById('save-btn');
   btn.disabled = true;
-  btn.textContent = '⏳ Сохранение...';
+  btn.textContent = '⏳ Передача боту на ПК...';
 
   const payload = collectForm();
-  saveLocal(payload); // всегда кешируем локально
+  saveLocal(payload);
 
-  let saved = false;
+  let savedOnServer = false;
 
-  // Попытка 1: отправить на локальный API (если доступен)
+  // Способ 1: Прямой HTTP POST к боту на ПК (через Cloudflare Tunnel / Localhost)
   if (API_BASE !== null) {
     try {
       const res = await fetch(API_BASE + '/api/config', {
@@ -150,38 +184,45 @@ async function saveSettings() {
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (data.ok) saved = true;
-    } catch(e) { /* API недоступен */ }
+      if (data.ok) savedOnServer = true;
+    } catch(e) {
+      console.warn('[MiniApp] POST error:', e.message);
+    }
   }
 
-  // Попытка 2: отправить через Telegram WebApp sendData (если открыто в Telegram)
-  if (!saved && tg && tg.sendData) {
+  // Способ 2: Telegram WebApp sendData (работает всегда внутри Telegram, мгновенно шлёт боту)
+  if (tg && tg.sendData) {
     try {
       tg.sendData(JSON.stringify({ action: 'save_config', ...payload }));
-      // sendData закроет Mini App — это нормальное поведение Telegram
+      btn.textContent = '✅ Передано боту!';
+      if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+      setTimeout(() => { try { tg.close(); } catch(e){} }, 1000);
       return;
-    } catch(e) { /* не удалось */ }
+    } catch(e) {
+      console.warn('[MiniApp] sendData unsupported in this context:', e.message);
+    }
   }
 
-  if (saved) {
+  if (savedOnServer) {
     if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-    btn.textContent = '✅ Сохранено!';
+    btn.textContent = '✅ Сохранено на ПК!';
   } else {
     btn.textContent = '💾 Сохранено локально';
   }
+
   setTimeout(() => { btn.disabled = false; btn.textContent = '💾 Сохранить настройки'; }, 2000);
 }
 
-// ===== Лиды =====
+// ===== Загрузка Лидов =====
 async function loadLeads() {
   const box = document.getElementById('leads-container');
 
   if (API_BASE === null) {
-    box.innerHTML = '<div class="empty-state">📱 Лиды доступны при подключении к ПК или через сообщения бота.</div>';
+    box.innerHTML = '<div class="empty-state">📊 Заявки транслируются прямо в бот Telegram. Нажмите "📲 Подключить заявки" в меню бота.</div>';
     return;
   }
 
-  box.innerHTML = '<div class="empty-state">⏳ Загрузка...</div>';
+  box.innerHTML = '<div class="empty-state">⏳ Загрузка лидов с ПК...</div>';
   try {
     const res = await fetch(API_BASE + '/api/leads?user_id=' + userId);
     const data = await res.json();
@@ -201,18 +242,17 @@ async function loadLeads() {
       box.appendChild(el);
     });
   } catch(e) {
-    box.innerHTML = '<div class="empty-state">Не удалось загрузить лиды.</div>';
+    box.innerHTML = '<div class="empty-state">Не удалось загрузить лиды с ПК.</div>';
   }
 }
 
-// ===== Промокод =====
+// ===== Активация промокода =====
 async function redeemPromo() {
   const input = document.getElementById('promo-input');
   const result = document.getElementById('promo-result');
   const code = input.value.trim();
   if (!code) return;
 
-  // Через API
   if (API_BASE !== null) {
     try {
       const res = await fetch(API_BASE + '/api/redeem_promo', {
@@ -228,14 +268,15 @@ async function redeemPromo() {
     } catch(e) {}
   }
 
-  // Через sendData
   if (tg && tg.sendData) {
     tg.sendData(JSON.stringify({ action: 'redeem_promo', user_id: userId, code: code }));
+    result.style.color = '#10B981';
+    result.textContent = '⏳ Код отправлен боту...';
     return;
   }
 
   result.style.color = '#EF4444';
-  result.textContent = 'Используйте команду /promo ' + code + ' в боте.';
+  result.textContent = 'Используйте команду /promo ' + code + ' в чате с ботом.';
 }
 
 document.addEventListener('DOMContentLoaded', loadConfig);
