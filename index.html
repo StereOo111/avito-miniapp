@@ -43,9 +43,16 @@
     <!-- Ссылки -->
     <section id="tab-links" class="tab-content active">
       <div class="card">
-        <h2>🎯 Ссылки Avito</h2>
-        <label>Ссылки поиска (по одной в строке):</label>
-        <textarea id="urls-input" placeholder="https://www.avito.ru/moskva/telefony..."></textarea>
+        <h2>🎯 Управление ссылками Avito</h2>
+        <div class="add-url-group">
+          <input type="text" id="new-url-input" placeholder="Вставьте ссылку на поиск Авито...">
+          <button type="button" onclick="addLinkUrl()">➕ Добавить</button>
+        </div>
+        <div id="urls-list-container" class="urls-list-container">
+          <!-- Сюда динамически добавляются ссылки -->
+        </div>
+        <!-- Скрытая textarea для обратной совместимости -->
+        <textarea id="urls-input" style="display:none;"></textarea>
       </div>
       <div class="card">
         <h2>💰 Цена</h2>

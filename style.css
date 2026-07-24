@@ -397,3 +397,97 @@ input:checked + .slider:before {
 .text-center {
   text-align: center;
 }
+
+/* Link Manager Styles */
+.add-url-group {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.add-url-group input {
+  flex: 1;
+}
+.add-url-group button {
+  background: var(--accent-color);
+  color: #fff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+.add-url-group button:active {
+  opacity: 0.8;
+}
+
+.urls-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.url-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #020617;
+  border: 1px solid var(--border-color);
+  padding: 8px 12px;
+  border-radius: 8px;
+  gap: 10px;
+}
+
+.url-text-wrapper {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.url-text-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #60A5FA;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.url-text-link {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+}
+
+.url-text-link:hover {
+  text-decoration: underline;
+  color: #93C5FD;
+}
+
+.delete-url-btn {
+  background: transparent;
+  color: var(--danger-color);
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-url-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+}

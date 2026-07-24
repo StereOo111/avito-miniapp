@@ -198,9 +198,80 @@ async function loadConfig() {
   }
 }
 
+let currentUrls = [];
+
+function renderUrlsList() {
+  const container = document.getElementById('urls-list-container');
+  if (!container) return;
+
+  if (currentUrls.length === 0) {
+    container.innerHTML = '<div class="text-center" style="padding:15px; color:var(--text-muted); font-size:12px;">Список ссылок пуст. Вставьте ссылку выше и нажмите кнопку.</div>';
+    document.getElementById('urls-input').value = '';
+    return;
+  }
+
+  container.innerHTML = '';
+  currentUrls.forEach((url, index) => {
+    let title = "Авито Поиск";
+    try {
+      const u = new URL(url);
+      const q = u.searchParams.get('q');
+      if (q) {
+        title = `🔍 Поиск: "${decodeURIComponent(q)}"`;
+      } else {
+        const pathParts = u.pathname.split('/').filter(p => p);
+        if (pathParts.length > 0) {
+          title = decodeURIComponent(pathParts[pathParts.length - 1]).replace(/_/g, ' ');
+        }
+      }
+    } catch(e) {}
+
+    const item = document.createElement('div');
+    item.className = 'url-item';
+    item.innerHTML = `
+      <div class="url-text-wrapper">
+        <span class="url-text-title">${title}</span>
+        <a href="${url}" target="_blank" class="url-text-link">${url}</a>
+      </div>
+      <button type="button" class="delete-url-btn" onclick="deleteLinkUrl(${index})" title="Удалить ссылку">🗑️</button>
+    `;
+    container.appendChild(item);
+  });
+
+  // Синхронизируем для отправки формы
+  document.getElementById('urls-input').value = currentUrls.join('\n');
+}
+
+function addLinkUrl() {
+  const input = document.getElementById('new-url-input');
+  const url = input.value.trim();
+  if (!url) return;
+
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    alert('Пожалуйста, введите корректную ссылку, начинающуюся с http:// или https://');
+    return;
+  }
+
+  if (currentUrls.includes(url)) {
+    alert('Эта ссылка уже добавлена!');
+    return;
+  }
+
+  currentUrls.push(url);
+  input.value = '';
+  renderUrlsList();
+}
+
+function deleteLinkUrl(index) {
+  currentUrls.splice(index, 1);
+  renderUrlsList();
+}
+
 function fillForm(cfg) {
   if (!cfg) return;
-  document.getElementById('urls-input').value = (cfg.urls || []).join('\n');
+  currentUrls = cfg.urls || [];
+  renderUrlsList();
+
   document.getElementById('min-price').value = cfg.min_price || 0;
   document.getElementById('max-price').value = cfg.max_price || 99999999;
   document.getElementById('count-page').value = cfg.count || 1;
@@ -278,7 +349,9 @@ async function saveSettings() {
     if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
     btn.textContent = '✅ Сохранено на ПК!';
   } else {
-    btn.textContent = '💾 Сохранено локально';
+    btn.textContent = '⚠️ Ошибка связи с ПК!';
+    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+    alert('⚠️ Внимание: Подключение к ПК отсутствует!\n\nНовые ссылки НЕ были сохранены на сервере. Пожалуйста, зайдите в Telegram-бот на телефоне, отправьте команду /start или /menu и откройте Mini App заново через новую присланную кнопку, чтобы обновить адрес подключения.');
   }
 
   // Восстанавливаем кнопку через 2 секунды, чтобы можно было сохранять многократно
