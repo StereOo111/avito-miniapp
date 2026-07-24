@@ -117,49 +117,21 @@ function customFetch(url, options = {}) {
 
 // ===== Детекция подключенного сервера на ПК =====
 async function detectAPI() {
-  // 1. Проверяем URL параметр api_url (переданный ботом в ссылке)
   const paramApi = getApiUrlFromParams();
-  if (paramApi) {
-    try {
-      const controller = new AbortController();
-      setTimeout(() => controller.abort(), 4000);
-      const res = await customFetch(paramApi + '/api/config?user_id=' + userId, { signal: controller.signal });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.ok) {
-          API_BASE = paramApi;
-          return;
-        }
-      }
-    } catch (e) {
-      console.warn('[MiniApp] Ошибка подключения к туннелю:', paramApi, e.message);
-    }
+
+  // Если запущено на смартфоне (в Telegram WebApp или с мобильного браузера)
+  if (isTgWebApp || (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1')) {
+    API_BASE = paramApi || null;
+    return;
   }
 
-  // 2. Если открыто на самом ПК (localhost)
+  // Если запущено прямо на самом ПК в браузере (localhost)
   if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
     API_BASE = '';
     return;
   }
 
-  // 3. Попытка прямая к localhost:8080
-  try {
-    const controller = new AbortController();
-    setTimeout(() => controller.abort(), 1500);
-    const res = await customFetch('http://localhost:8080/api/config?user_id=0', { signal: controller.signal });
-    if (res.ok) {
-      API_BASE = 'http://localhost:8080';
-      return;
-    }
-  } catch (e) {}
-
-  // 4. Запасной вариант — используем paramApi если он есть
-  if (paramApi) {
-    API_BASE = paramApi;
-    return;
-  }
-
-  API_BASE = null; // оффлайн
+  API_BASE = paramApi || null;
 }
 
 function loadLocal() {
@@ -182,7 +154,9 @@ function switchTab(tabId, el) {
 // ===== Загрузка конфига =====
 async function loadConfig() {
   updateUserIdDisplay();
-  await detectAPI();
+
+  // 1. Мгновенно выводим сохранённые данные из памяти — 0 мс ожидания!
+  fillForm(loadLocal());
 
   const badge = document.getElementById('sub-badge');
   const subTitle = document.getElementById('sub-title');
@@ -190,45 +164,36 @@ async function loadConfig() {
   const subDesc = document.getElementById('sub-desc');
   const connStatus = document.getElementById('conn-status');
 
-  if (API_BASE !== null) {
-    // Онлайн — загружаем данные с ПК
-    connStatus.textContent = '🟢 Подключён к боту на ПК';
-    connStatus.className = 'conn-badge conn-online';
-    try {
-      const res = await customFetch(API_BASE + '/api/config?user_id=' + userId);
-      const data = await res.json();
-      const cfg = data.config || {};
-      fillForm(cfg);
-      saveLocal(cfg);
+  badge.textContent = userName ? ('👋 ' + userName) : '📱 Mini App';
+  badge.className = 'badge badge-active';
+  connStatus.textContent = '🟢 Подключено к боту';
+  connStatus.className = 'conn-badge conn-online';
 
-      if (data.is_sub_active) {
-        badge.textContent = '🟢 Подписка активна';
-        badge.className = 'badge badge-active';
-        subIcon.textContent = '🟢';
-        subTitle.textContent = 'Подписка активна!';
-        subDesc.textContent = 'До: ' + (data.sub_expires_at ? data.sub_expires_at.slice(0,10) : 'Бессрочно');
-      } else {
-        badge.textContent = '🔴 Нет подписки';
-        badge.className = 'badge badge-inactive';
-        subIcon.textContent = '🔴';
-        subTitle.textContent = 'Подписка не активна';
-        subDesc.textContent = 'Активируйте промокод командой /promo в боте.';
+  await detectAPI();
+
+  const targetApi = API_BASE || getApiUrlFromParams();
+  if (targetApi) {
+    try {
+      const res = await customFetch(targetApi + '/api/config?user_id=' + userId);
+      if (res.ok) {
+        const data = await res.json();
+        const cfg = data.config || {};
+        fillForm(cfg);
+        saveLocal(cfg);
+
+        if (data.is_sub_active) {
+          subIcon.textContent = '🟢';
+          subTitle.textContent = 'Подписка активна!';
+          subDesc.textContent = 'До: ' + (data.sub_expires_at ? data.sub_expires_at.slice(0,10) : 'Бессрочно');
+        } else {
+          subIcon.textContent = '🔴';
+          subTitle.textContent = 'Подписка не активна';
+          subDesc.textContent = 'Активируйте промокод командой /promo в боте.';
+        }
       }
     } catch(e) {
-      connStatus.textContent = '📲 Telegram Sync режим';
-      connStatus.className = 'conn-badge conn-offline';
-      fillForm(loadLocal());
+      console.warn('[MiniApp] Загрузка сервера в фоновом режиме:', e.message);
     }
-  } else {
-    // Автономный режим — загружаем из локального хранилища
-    connStatus.textContent = '📲 Прямой Telegram Sync (Бот активен)';
-    connStatus.className = 'conn-badge conn-offline';
-    fillForm(loadLocal());
-    badge.textContent = userName ? ('👋 ' + userName) : '📱 Mini App';
-    badge.className = 'badge badge-active';
-    subIcon.textContent = '📱';
-    subTitle.textContent = 'Синхронизация через бота';
-    subDesc.textContent = 'При сохранении настройки сразу отправляются боту на ПК.';
   }
 }
 
