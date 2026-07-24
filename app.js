@@ -249,7 +249,6 @@ async function saveSettings() {
   // Прямой HTTP POST к боту на ПК (через Cloudflare Tunnel / Localhost)
   if (targetApi !== null) {
     try {
-      // Если targetApi это пустая строка, значит мы на localhost
       const url = (targetApi === '') ? '/api/config' : (targetApi + '/api/config');
       const res = await customFetch(url, {
         method: 'POST',
@@ -262,14 +261,13 @@ async function saveSettings() {
     }
   }
 
-  // Способ 2: Telegram WebApp sendData (если доступен в данном контексте)
-  if (tg && tg.sendData) {
+  // Резервный способ: Telegram WebApp sendData (ТОЛЬКО если HTTP POST не удался)
+  if (!savedOnServer && tg && tg.sendData) {
     try {
       tg.sendData(JSON.stringify({ action: 'save_config', ...payload }));
-      btn.textContent = '✅ Передано боту!';
+      btn.textContent = '✅ Передано через Telegram!';
       if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-      setTimeout(() => { try { tg.close(); } catch(e){} }, 1000);
-      return;
+      savedOnServer = true;
     } catch(e) {
       console.warn('[MiniApp] sendData unsupported in this context:', e.message);
     }
@@ -282,6 +280,7 @@ async function saveSettings() {
     btn.textContent = '💾 Сохранено локально';
   }
 
+  // Восстанавливаем кнопку через 2 секунды, чтобы можно было сохранять многократно
   setTimeout(() => { btn.disabled = false; btn.textContent = '💾 Сохранить настройки'; }, 2000);
 }
 
