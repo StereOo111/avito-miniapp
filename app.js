@@ -334,7 +334,7 @@ function fillForm(cfg) {
 function collectForm() {
   return {
     user_id: userId,
-    urls: document.getElementById('urls-input').value.split('\n').filter(u => u.trim()),
+    urls: currentUrls,
     min_price: parseInt(document.getElementById('min-price').value) || 0,
     max_price: parseInt(document.getElementById('max-price').value) || 99999999,
     count: parseInt(document.getElementById('count-page').value) || 1,
