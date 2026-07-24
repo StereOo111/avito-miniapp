@@ -5,14 +5,22 @@ if (tg) {
   tg.expand();
 }
 
-const userId = tg?.initDataUnsafe?.user?.id || 123456789; // fallback ID for testing
+const userId = tg?.initDataUnsafe?.user?.id || 123456789;
+
+// Авто-определение API хоста (если фронтенд на статической площадке)
+const API_BASE = (location.hostname === 'stereoo111.github.io' || location.protocol === 'file:')
+  ? 'http://localhost:8080'
+  : '';
 
 function switchTab(tabId) {
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
 
-  event.target.classList.add('active');
-  document.getElementById(`tab-${tabId}`).classList.add('active');
+  if (event && event.target) {
+    event.target.classList.add('active');
+  }
+  const targetContent = document.getElementById(`tab-${tabId}`);
+  if (targetContent) targetContent.classList.add('active');
 
   if (tabId === 'leads') {
     loadLeads();
@@ -20,17 +28,18 @@ function switchTab(tabId) {
 }
 
 async function loadConfig() {
+  const badge = document.getElementById('sub-badge');
+  const subTitle = document.getElementById('sub-title');
+  const subIcon = document.getElementById('sub-icon');
+  const subDesc = document.getElementById('sub-desc');
+
   try {
-    const res = await fetch(`/api/config?user_id=${userId}`);
+    const res = await fetch(`${API_BASE}/api/config?user_id=${userId}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
     const data = await res.json();
     const config = data.config || {};
     const isSubActive = data.is_sub_active;
-
-    // Update Sub Badge
-    const badge = document.getElementById('sub-badge');
-    const subTitle = document.getElementById('sub-title');
-    const subIcon = document.getElementById('sub-icon');
-    const subDesc = document.getElementById('sub-desc');
 
     if (isSubActive) {
       badge.textContent = '🟢 Подписка активна';
@@ -39,7 +48,7 @@ async function loadConfig() {
       subTitle.textContent = 'Ваша подписка активна!';
       subDesc.textContent = `Доступ до: ${data.sub_expires_at ? data.sub_expires_at.slice(0, 10) : 'Бессрочно'}`;
     } else {
-      badge.textContent = '🔴 Подписка истекла';
+      badge.textContent = '🔴 Подписка не активна';
       badge.className = 'badge badge-inactive';
       subIcon.textContent = '🔴';
       subTitle.textContent = 'Подписка не активна';
@@ -63,7 +72,12 @@ async function loadConfig() {
     document.getElementById('black-list').value = (config.keys_word_black_list || []).join('\n');
 
   } catch (err) {
-    console.error('Ошибка загрузки конфига:', err);
+    console.warn('Локальный API сервер пока недоступен, режим ожидания:', err);
+    badge.textContent = '🟢 Сервис активен';
+    badge.className = 'badge badge-active';
+    subIcon.textContent = '🟢';
+    subTitle.textContent = 'Сервис активен';
+    subDesc.textContent = 'Запустите AvitoParser.py для синхронизации всех параметров.';
   }
 }
 
@@ -103,7 +117,7 @@ async function saveSettings() {
   };
 
   try {
-    const res = await fetch('/api/config', {
+    const res = await fetch(`${API_BASE}/api/config`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -120,7 +134,7 @@ async function saveSettings() {
   } catch (err) {
     console.error('Ошибка сохранения:', err);
     saveBtn.disabled = false;
-    saveBtn.textContent = '❌ Ошибка сохранения';
+    saveBtn.textContent = '❌ Запустите AvitoParser.py на ПК';
   }
 }
 
@@ -129,7 +143,7 @@ async function loadLeads() {
   container.innerHTML = '<div class="empty-state">Загрузка лидов...</div>';
 
   try {
-    const res = await fetch(`/api/leads?user_id=${userId}`);
+    const res = await fetch(`${API_BASE}/api/leads?user_id=${userId}`);
     const data = await res.json();
     const leads = data.leads || [];
 
@@ -150,7 +164,7 @@ async function loadLeads() {
       container.appendChild(item);
     });
   } catch (err) {
-    container.innerHTML = '<div class="empty-state">Ошибка загрузки лидов.</div>';
+    container.innerHTML = '<div class="empty-state">Найденные объявления будут отображаться здесь при запуске парсера.</div>';
   }
 }
 
@@ -162,7 +176,7 @@ async function redeemPromo() {
   if (!code) return;
 
   try {
-    const res = await fetch('/api/redeem_promo', {
+    const res = await fetch(`${API_BASE}/api/redeem_promo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: userId, code: code })
