@@ -39,35 +39,62 @@ async function updateUserIdDisplay() {
   const displayEl = document.getElementById('user-id-display');
   const dropdownEl = document.getElementById('user-selector-dropdown');
   const changeBtn = document.getElementById('change-user-btn');
+  const pcBar = document.getElementById('pc-api-setup-bar');
+  const pcStatus = document.getElementById('pc-api-status-label');
+  const pcInput = document.getElementById('pc-api-url-input');
 
   if (isTgWebApp) {
     // На смартфоне в Telegram — строго фиксированный профиль текущего пользователя
     if (displayEl) displayEl.textContent = userId + (userName ? ' (' + userName + ')' : '');
     if (dropdownEl) dropdownEl.style.display = 'none';
     if (changeBtn) changeBtn.style.display = 'none';
+    if (pcBar) pcBar.style.display = 'none';
   } else {
     // На ПК в обычном браузере — админ-режим со списком пользователей
     if (displayEl) displayEl.textContent = userId ? userId : 'Не выбран';
     if (changeBtn) changeBtn.style.display = 'inline-block';
-
+    
+    // Показываем панель подключения к серверу
+    if (pcBar) pcBar.style.display = 'flex';
+    
     const targetApi = getTargetApi();
-    if (targetApi !== null && dropdownEl) {
-      try {
-        const url = (targetApi === '') ? '/api/users' : (targetApi + '/api/users');
-        const res = await customFetch(url);
-        const data = await res.json();
-        if (data && data.ok && data.users && data.users.length) {
-          dropdownEl.innerHTML = '<option value="">-- Выберите профиль ПК --</option>';
-          data.users.forEach(u => {
-            const opt = document.createElement('option');
-            opt.value = u.user_id;
-            opt.textContent = (u.first_name || u.username || 'ID ' + u.user_id) + ' (' + u.user_id + ')';
-            if (u.user_id == userId) opt.selected = true;
-            dropdownEl.appendChild(opt);
-          });
-          dropdownEl.style.display = 'inline-block';
+    if (pcInput && !pcInput.value) {
+      pcInput.value = localStorage.getItem('desktop_admin_custom_api_url') || '';
+    }
+
+    if (targetApi !== null) {
+      if (pcStatus) {
+        pcStatus.textContent = '🟢 Подключен ' + (targetApi === '' ? '(Localhost)' : '(Туннель)');
+        pcStatus.style.color = 'var(--success-color)';
+      }
+      if (dropdownEl) {
+        try {
+          const url = (targetApi === '') ? '/api/users' : (targetApi + '/api/users');
+          const res = await customFetch(url);
+          const data = await res.json();
+          if (data && data.ok && data.users && data.users.length) {
+            dropdownEl.innerHTML = '<option value="">-- Выберите профиль ПК --</option>';
+            data.users.forEach(u => {
+              const opt = document.createElement('option');
+              opt.value = u.user_id;
+              opt.textContent = (u.first_name || u.username || 'ID ' + u.user_id) + ' (' + u.user_id + ')';
+              if (u.user_id == userId) opt.selected = true;
+              dropdownEl.appendChild(opt);
+            });
+            dropdownEl.style.display = 'inline-block';
+          }
+        } catch(e) {
+          if (pcStatus) {
+            pcStatus.textContent = '🔴 Ошибка подключения';
+            pcStatus.style.color = 'var(--danger-color)';
+          }
         }
-      } catch(e) {}
+      }
+    } else {
+      if (pcStatus) {
+        pcStatus.textContent = '🔴 Не подключен';
+        pcStatus.style.color = 'var(--danger-color)';
+      }
     }
   }
 }
@@ -120,8 +147,8 @@ function customFetch(url, options = {}) {
 async function detectAPI() {
   const paramApi = getApiUrlFromParams();
 
-  // Если запущено на смартфоне (в Telegram WebApp или с мобильного браузера)
-  if (isTgWebApp || (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1')) {
+  // Если запущено на смартфоне в Telegram WebApp
+  if (isTgWebApp) {
     API_BASE = paramApi || null;
     return;
   }
@@ -132,7 +159,26 @@ async function detectAPI() {
     return;
   }
 
+  // Если открыто в обычном браузере на ПК с внешнего хостинга (например, GitHub Pages)
+  const customApi = localStorage.getItem('desktop_admin_custom_api_url');
+  if (customApi) {
+    API_BASE = customApi.trim().replace(/\/$/, '');
+    return;
+  }
+
   API_BASE = paramApi || null;
+}
+
+function saveCustomApiUrl() {
+  const val = document.getElementById('pc-api-url-input').value.trim();
+  if (val) {
+    localStorage.setItem('desktop_admin_custom_api_url', val);
+    alert('URL кастомного API сохранен! Переподключение...');
+  } else {
+    localStorage.removeItem('desktop_admin_custom_api_url');
+    alert('Кастомный URL сброшен. Используется стандартное подключение.');
+  }
+  loadConfig();
 }
 
 function loadLocal() {
