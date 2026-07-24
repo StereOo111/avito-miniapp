@@ -317,6 +317,7 @@ async function saveSettings() {
   saveLocal(payload);
 
   let savedOnServer = false;
+  let serverError = null;
   const targetApi = getTargetApi();
 
   // Прямой HTTP POST к боту на ПК (через Cloudflare Tunnel / Localhost)
@@ -328,14 +329,18 @@ async function saveSettings() {
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (data && data.ok) savedOnServer = true;
+      if (data && data.ok) {
+        savedOnServer = true;
+      } else if (data && data.message) {
+        serverError = data.message;
+      }
     } catch(e) {
       console.warn('[MiniApp] POST error:', e.message);
     }
   }
 
   // Резервный способ: Telegram WebApp sendData (ТОЛЬКО если HTTP POST не удался)
-  if (!savedOnServer && tg && tg.sendData) {
+  if (!savedOnServer && !serverError && tg && tg.sendData) {
     try {
       tg.sendData(JSON.stringify({ action: 'save_config', ...payload }));
       btn.textContent = '✅ Передано через Telegram!';
@@ -350,9 +355,13 @@ async function saveSettings() {
     if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
     btn.textContent = '✅ Сохранено на ПК!';
   } else {
-    btn.textContent = '⚠️ Ошибка связи с ПК!';
+    btn.textContent = '⚠️ Ошибка!';
     if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
-    alert('⚠️ Внимание: Подключение к ПК отсутствует!\n\nНовые ссылки НЕ были сохранены на сервере. Пожалуйста, зайдите в Telegram-бот на телефоне, отправьте команду /start или /menu и откройте Mini App заново через новую присланную кнопку, чтобы обновить адрес подключения.');
+    if (serverError) {
+      alert('⚠️ Ошибка сервера: ' + serverError);
+    } else {
+      alert('⚠️ Внимание: Подключение к ПК отсутствует!\n\nНовые ссылки НЕ были сохранены на сервере. Пожалуйста, зайдите в Telegram-бот на телефоне, отправьте команду /start или /menu и откройте Mini App заново через новую присланную кнопку, чтобы обновить адрес подключения.');
+    }
   }
 
   // Восстанавливаем кнопку через 2 секунды, чтобы можно было сохранять многократно
