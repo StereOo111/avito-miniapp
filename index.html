@@ -77,6 +77,14 @@
     <!-- Фильтры -->
     <section id="tab-filters" class="tab-content">
       <div class="card">
+        <h2>📍 Фильтр по городам / населенным пунктам</h2>
+        <div class="city-autocomplete-wrapper" style="position:relative;">
+          <input type="text" id="city-search-input" placeholder="Введите город (например, Крас...)" autocomplete="off" oninput="onCitySearchInput(this.value)">
+          <div id="city-suggestions-dropdown" class="city-dropdown" style="display:none;"></div>
+        </div>
+        <div id="selected-cities-tags" class="selected-cities-tags"></div>
+      </div>
+      <div class="card">
         <h2>⏰ Возраст объявления</h2>
         <div class="grid-2">
           <div><label>Макс. возраст:</label><input type="number" id="max-age" placeholder="0"></div>

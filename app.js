@@ -357,6 +357,9 @@ function fillForm(cfg) {
   currentUrls = cfg.urls || [];
   renderUrlsList();
 
+  selectedCities = cfg.location_filter || [];
+  renderSelectedCities();
+
   const el = (id) => document.getElementById(id);
   if (el('min-price')) el('min-price').value = cfg.min_price || 0;
   if (el('max-price')) el('max-price').value = cfg.max_price || 99999999;
@@ -405,8 +408,106 @@ function collectForm() {
     only_with_photo: boolVal('only-photo'),
     keys_word_white_list: listVal('white-list'),
     keys_word_black_list: listVal('black-list'),
+    location_filter: Array.isArray(selectedCities) ? selectedCities : [],
   };
 }
+
+// ===== ФИЛЬТР ПО ГОРОДАМ / АВТОДОПОЛНЕНИЕ =====
+let allCities = [];
+let selectedCities = [];
+
+async function loadCitiesData() {
+  try {
+    const res = await fetch('cities.json');
+    if (res.ok) {
+      allCities = await res.json();
+      console.log('[MiniApp] Загружена база городов:', allCities.length);
+    }
+  } catch(e) {
+    console.warn('[MiniApp] Загрузка cities.json не удалась:', e);
+  }
+}
+loadCitiesData();
+
+function onCitySearchInput(query) {
+  const dropdown = document.getElementById('city-suggestions-dropdown');
+  if (!dropdown) return;
+
+  const q = query.trim().toLowerCase();
+  if (!q || q.length < 1) {
+    dropdown.style.display = 'none';
+    dropdown.innerHTML = '';
+    return;
+  }
+
+  const matches = allCities.filter(c => c.name.toLowerCase().includes(q)).slice(0, 15);
+  if (!matches.length) {
+    dropdown.innerHTML = '<div class="city-item" style="color:#94A3B8; cursor:default;">Ничего не найдено</div>';
+    dropdown.style.display = 'block';
+    return;
+  }
+
+  let html = '';
+  matches.forEach(c => {
+    html += `
+      <div class="city-item" onclick="selectCity('${c.name.replace(/'/g, "\\'")}')">
+        <span>📍 ${c.name}</span>
+        <span class="city-item-subject">${c.subject || ''}</span>
+      </div>
+    `;
+  });
+
+  dropdown.innerHTML = html;
+  dropdown.style.display = 'block';
+}
+
+function selectCity(cityName) {
+  if (!selectedCities.includes(cityName)) {
+    selectedCities.push(cityName);
+  }
+  const input = document.getElementById('city-search-input');
+  if (input) input.value = '';
+  const dropdown = document.getElementById('city-suggestions-dropdown');
+  if (dropdown) {
+    dropdown.style.display = 'none';
+    dropdown.innerHTML = '';
+  }
+  renderSelectedCities();
+}
+
+function removeCityTag(index) {
+  selectedCities.splice(index, 1);
+  renderSelectedCities();
+}
+
+function renderSelectedCities() {
+  const container = document.getElementById('selected-cities-tags');
+  if (!container) return;
+
+  if (!selectedCities.length) {
+    container.innerHTML = '<span style="font-size:12px; color:#64748B;">Города не выбраны (поиск по всем локациям)</span>';
+    return;
+  }
+
+  let html = '';
+  selectedCities.forEach((city, index) => {
+    html += `
+      <span class="city-tag">
+        📍 ${city}
+        <span class="city-tag-remove" onclick="removeCityTag(${index})" title="Удалить">×</span>
+      </span>
+    `;
+  });
+  container.innerHTML = html;
+}
+
+document.addEventListener('click', (e) => {
+  const input = document.getElementById('city-search-input');
+  const dropdown = document.getElementById('city-suggestions-dropdown');
+  if (dropdown && input && !input.contains(e.target) && !dropdown.contains(e.target)) {
+    dropdown.style.display = 'none';
+  }
+});
 
 // ===== СОХРАНЕНИЕ =====
 async function saveSettings() {
