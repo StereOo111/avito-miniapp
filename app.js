@@ -65,34 +65,18 @@ function saveLocal(cfg) {
 async function detectAPI() {
   const paramApi = getApiUrlFromParams();
 
-  // Telegram WebApp на телефоне — используем api_url из параметров
-  if (isTgWebApp) {
-    if (paramApi) {
-      // Проверяем, жив ли туннель, с коротким таймаутом
-      try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 3000);
-        const res = await fetch(paramApi + '/api/config?user_id=0', {
-          signal: ctrl.signal,
-          headers: { 'bypass-tunnel-reminder': 'true', 'ngrok-skip-browser-warning': 'true' }
-        });
-        clearTimeout(timer);
-        if (res.ok) {
-          API_BASE = paramApi;
-          console.log('[MiniApp] Туннель жив:', paramApi);
-          return;
-        }
-      } catch(e) {
-        console.warn('[MiniApp] Туннель недоступен:', e.message);
-      }
-    }
-    API_BASE = null;
+  // Если Mini App открыт по адресу localhost или напрямую по адресу туннеля (trycloudflare, lhr.life, serveo и т.д.)
+  const h = location.hostname;
+  if (h === 'localhost' || h === '127.0.0.1' || h.endsWith('trycloudflare.com') || h.endsWith('lhr.life') || h.endsWith('lhrtunnel.link') || h.endsWith('serveo.net') || h.endsWith('pinggy.link') || h.endsWith('ngrok-free.app')) {
+    API_BASE = '';
+    console.log('[MiniApp] Работаем напрямую (Same-Origin / Localhost)');
     return;
   }
 
-  // Localhost на ПК
-  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-    API_BASE = '';
+  // Если передан api_url в параметрах (при запуске с GitHub Pages)
+  if (paramApi) {
+    API_BASE = paramApi;
+    console.log('[MiniApp] Обнаружен API URL из параметров:', paramApi);
     return;
   }
 
@@ -103,7 +87,7 @@ async function detectAPI() {
     return;
   }
 
-  API_BASE = paramApi || null;
+  API_BASE = null;
 }
 
 function saveCustomApiUrl() {
@@ -133,7 +117,7 @@ async function updateUserIdDisplay() {
     if (displayEl) displayEl.textContent = userId + (userName ? ' (' + userName + ')' : '');
     if (dropdownEl) dropdownEl.style.display = 'none';
     if (changeBtn) changeBtn.style.display = 'none';
-    if (pcBar) pcBar.style.display = 'none';
+    // Мы не скрываем pcBar безусловно здесь, чтобы при ошибке loadConfig мог его показать для отладки
   } else {
     if (displayEl) displayEl.textContent = userId ? userId : 'Не выбран';
     if (changeBtn) changeBtn.style.display = 'inline-block';
@@ -247,9 +231,34 @@ async function loadConfig() {
           if (subTitle) subTitle.textContent = 'Подписка не активна';
           if (subDesc) subDesc.textContent = 'Активируйте промокод: /promo в боте.';
         }
+        
+        // Скрываем панель настройки API, если всё успешно загрузилось (если мы в Telegram)
+        if (isTgWebApp) {
+          const pcBar = document.getElementById('pc-api-setup-bar');
+          if (pcBar) pcBar.style.display = 'none';
+        }
+      } else {
+        throw new Error('HTTP ' + res.status);
       }
     } catch(e) {
-      console.warn('[MiniApp] Загрузка конфига:', e.message);
+      console.warn('[MiniApp] Загрузка конфига не удалась:', e.message);
+      // Если соединение оборвалось или туннель упал, показываем панель настройки API для отладки/повтора
+      const pcBar = document.getElementById('pc-api-setup-bar');
+      if (pcBar) pcBar.style.display = 'flex';
+      const pcStatus = document.getElementById('pc-api-status-label');
+      if (pcStatus) {
+        pcStatus.textContent = '🔴 Ошибка соединения';
+        pcStatus.style.color = 'var(--danger-color)';
+      }
+    }
+  } else {
+    // Если targetApi отсутствует, показываем панель для возможности ручного ввода
+    const pcBar = document.getElementById('pc-api-setup-bar');
+    if (pcBar) pcBar.style.display = 'flex';
+    const pcStatus = document.getElementById('pc-api-status-label');
+    if (pcStatus) {
+      pcStatus.textContent = '🔴 Не подключен (Нет API URL)';
+      pcStatus.style.color = 'var(--danger-color)';
     }
   }
 }
