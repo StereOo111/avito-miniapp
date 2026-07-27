@@ -469,37 +469,68 @@ async function saveSettings() {
 }
 
 // ===== Загрузка Лидов =====
+let leadsInterval = null;
+
 async function loadLeads() {
   const box = document.getElementById('leads-container');
-  const targetApi = getTargetApi();
+  if (!box) return;
 
+  const targetApi = getTargetApi();
   if (targetApi === null) {
-    box.innerHTML = '<div class="empty-state">📊 Запустите парсер на ПК для просмотра заявок.</div>';
+    box.innerHTML = '<div class="empty-state">📊 Запустите парсер на ПК для просмотра спарсенных объявлений.</div>';
     return;
   }
 
-  box.innerHTML = '<div class="empty-state">⏳ Загрузка...</div>';
+  if (!box.children.length) {
+    box.innerHTML = '<div class="empty-state">⏳ Загрузка спарсенных объявлений...</div>';
+  }
+
   try {
     const url = (targetApi === '') ? ('/api/leads?user_id=' + userId) : (targetApi + '/api/leads?user_id=' + userId);
     const res = await customFetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     const leads = data.leads || [];
+
     if (!leads.length) {
-      box.innerHTML = '<div class="empty-state">Объявлений пока нет.</div>';
+      box.innerHTML = '<div class="empty-state">🎯 Спарсенных объявлений пока нет. Настройте ссылки и запустите парсер!</div>';
       return;
     }
-    box.innerHTML = '';
+
+    let html = '';
     leads.forEach(l => {
-      const el = document.createElement('div');
-      el.className = 'lead-item';
-      el.innerHTML =
-        '<a href="' + (l.url||'#') + '" target="_blank" class="lead-title">' + (l.title || 'Объявление') + '</a>' +
-        '<div class="lead-price">' + (l.price ? Number(l.price).toLocaleString('ru-RU') + ' ₽' : '—') + '</div>' +
-        '<div class="lead-meta">📍 ' + (l.location || '—') + '</div>';
-      box.appendChild(el);
+      const priceStr = l.price ? (Number(l.price).toLocaleString('ru-RU') + ' ₽') : 'Цена не указана';
+      const timeStr = l.created_at ? l.created_at.slice(11, 16) : '';
+      const sellerStr = l.seller_name ? (' 👤 ' + l.seller_name) : '';
+
+      html += `
+        <div class="lead-item">
+          <a href="${l.url || '#'}" target="_blank" class="lead-title">${l.title || 'Объявление'}</a>
+          <div class="lead-price">${priceStr}</div>
+          <div class="lead-meta">📍 ${l.location || '—'} ${sellerStr} ${timeStr ? (' • ⏱️ ' + timeStr) : ''}</div>
+        </div>
+      `;
     });
+
+    box.innerHTML = html;
   } catch(e) {
-    box.innerHTML = '<div class="empty-state">Не удалось загрузить данные.</div>';
+    console.warn('[MiniApp] Ошибка загрузки лидов:', e);
+    if (!box.children.length || box.querySelector('.empty-state')) {
+      box.innerHTML = '<div class="empty-state">⚠️ Не удалось подгрузить объявления. Проверьте связь с ботом на ПК.</div>';
+    }
+  }
+
+  // Настраиваем фоновое авто-обновление каждые 12 секунд
+  if (!leadsInterval) {
+    leadsInterval = setInterval(() => {
+      const leadsTab = document.getElementById('tab-leads');
+      if (leadsTab && leadsTab.classList.contains('active')) {
+        loadLeads();
+      } else {
+        clearInterval(leadsInterval);
+        leadsInterval = null;
+      }
+    }, 12000);
   }
 }
 
