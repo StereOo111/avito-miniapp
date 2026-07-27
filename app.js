@@ -387,6 +387,7 @@ async function saveSettings() {
   btn.textContent = '⏳ Сохранение...';
 
   let savedOnServer = false;
+  let savedViaApi = false;
   let serverError = null;
 
   try {
@@ -403,17 +404,20 @@ async function saveSettings() {
         const url = (targetApi === '') ? '/api/config' : (targetApi + '/api/config');
         console.log('[MiniApp] POST к', url);
         const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 1500); // 1.5 сек таймаут
+        // A cold Cloudflare tunnel can take a few seconds to answer.
+        const timer = setTimeout(() => ctrl.abort(), 10000);
         const res = await customFetch(url, {
           method: 'POST',
           body: JSON.stringify(payload),
           signal: ctrl.signal
         });
         clearTimeout(timer);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         console.log('[MiniApp] Ответ сервера:', JSON.stringify(data));
         if (data && data.ok) {
           savedOnServer = true;
+          savedViaApi = true;
         } else if (data && data.message) {
           serverError = data.message;
         }
@@ -437,6 +441,11 @@ async function saveSettings() {
     if (savedOnServer) {
       btn.textContent = '✅ Сохранено!';
       if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+      // Telegram closes a Mini App only after its settings were confirmed by
+      // the server.  sendData itself closes the app in supported launch modes.
+      if (savedViaApi && isTgWebApp && tg?.close) {
+        setTimeout(() => tg.close(), 500);
+      }
     } else if (serverError) {
       btn.textContent = '⚠️ Ошибка!';
       if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
