@@ -248,7 +248,6 @@ async function loadConfig() {
         pcStatus.textContent = '🔴 Ошибка соединения';
         pcStatus.style.color = 'var(--danger-color)';
       }
-      showOutdatedModal();
     }
   } else {
     const pcBar = document.getElementById('pc-api-setup-bar');
