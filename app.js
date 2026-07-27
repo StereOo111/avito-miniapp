@@ -365,7 +365,7 @@ function fillForm(cfg) {
   if (el('count-page')) el('count-page').value = cfg.count || 1;
   if (el('max-age')) el('max-age').value = cfg.max_age || 0;
   if (el('max-age-unit')) el('max-age-unit').value = cfg.max_age_unit || 'minutes';
-  if (el('reserv-mode')) el('reserv-mode').value = cfg.reserv_mode || 'ignore';
+  if (el('reserv-mode')) el('reserv-mode').value = cfg.reserv_mode || 'all';
   if (el('only-discount')) el('only-discount').checked = !!cfg.only_with_discount;
   if (el('only-photo')) el('only-photo').checked = !!cfg.only_with_photo;
   if (el('white-list')) el('white-list').value = (cfg.keys_word_white_list || []).join('\n');
@@ -402,7 +402,7 @@ function collectForm() {
     count: parseVal('count-page', 1),
     max_age: parseVal('max-age', 0),
     max_age_unit: strVal('max-age-unit', 'minutes'),
-    reserv_mode: strVal('reserv-mode', 'ignore'),
+    reserv_mode: strVal('reserv-mode', 'all'),
     only_with_discount: boolVal('only-discount'),
     only_with_photo: boolVal('only-photo'),
     keys_word_white_list: listVal('white-list'),
