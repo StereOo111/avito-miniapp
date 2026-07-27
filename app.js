@@ -241,7 +241,6 @@ async function loadConfig() {
       }
     } catch(e) {
       console.warn('[MiniApp] Загрузка конфига не удалась:', e.message);
-      // Если соединение оборвалось или туннель упал, показываем панель настройки API для отладки/повтора
       const pcBar = document.getElementById('pc-api-setup-bar');
       if (pcBar) pcBar.style.display = 'flex';
       const pcStatus = document.getElementById('pc-api-status-label');
@@ -249,9 +248,9 @@ async function loadConfig() {
         pcStatus.textContent = '🔴 Ошибка соединения';
         pcStatus.style.color = 'var(--danger-color)';
       }
+      showOutdatedModal();
     }
   } else {
-    // Если targetApi отсутствует, показываем панель для возможности ручного ввода
     const pcBar = document.getElementById('pc-api-setup-bar');
     if (pcBar) pcBar.style.display = 'flex';
     const pcStatus = document.getElementById('pc-api-status-label');
@@ -259,6 +258,29 @@ async function loadConfig() {
       pcStatus.textContent = '🔴 Не подключен (Нет API URL)';
       pcStatus.style.color = 'var(--danger-color)';
     }
+  }
+}
+
+function showOutdatedModal() {
+  const modal = document.getElementById('outdated-modal');
+  if (modal) {
+    modal.style.display = 'flex';
+  }
+}
+
+function reconnectApp() {
+  localStorage.removeItem('desktop_admin_custom_api_url');
+  const modal = document.getElementById('outdated-modal');
+  if (modal) modal.style.display = 'none';
+  loadConfig();
+}
+
+function closeApp() {
+  if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.close === 'function') {
+    window.Telegram.WebApp.close();
+  } else {
+    const modal = document.getElementById('outdated-modal');
+    if (modal) modal.style.display = 'none';
   }
 }
 

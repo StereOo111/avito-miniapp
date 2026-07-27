@@ -140,8 +140,19 @@
 
     <div class="action-bar">
       <button id="save-btn" class="btn btn-success flex-1" onclick="saveSettings()">💾 Сохранить настройки</button>
+    <!-- Модальное окно проверки версии и туннеля -->
+    <div id="outdated-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(15,23,42,0.9); backdrop-filter:blur(8px); z-index:9999; align-items:center; justify-content:center; padding:16px;">
+      <div style="background:#1E293B; border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:24px; max-width:340px; width:100%; text-align:center; box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);">
+        <div style="font-size:44px; margin-bottom:12px;">🔄</div>
+        <h2 style="font-size:18px; margin-bottom:8px; color:#F8FAFC;">Сессия сервера обновилась</h2>
+        <p style="font-size:13px; color:#94A3B8; margin-bottom:16px; line-height:1.5;">Ссылка туннеля или версия сервера изменились.<br>Перезапустите Mini App из Telegram меню!</p>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button type="button" onclick="reconnectApp()" style="background:#3B82F6; color:white; border:none; padding:10px 16px; border-radius:8px; font-weight:600; font-size:13px; cursor:pointer;">🔄 Переподключиться</button>
+          <button type="button" onclick="closeApp()" style="background:transparent; color:#94A3B8; border:1px solid #475569; padding:8px 16px; border-radius:8px; font-size:12px; cursor:pointer;">❌ Закрыть</button>
+        </div>
+      </div>
     </div>
   </div>
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>
