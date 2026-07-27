@@ -11,22 +11,13 @@ const isTgWebApp = !!(window.Telegram?.WebApp?.initDataUnsafe?.user?.id);
 
 function resolveUserId() {
   try {
-    // 1. Внутри Telegram на смартфоне — 100% строгая изоляция по данным Telegram SDK
     const fromTg = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-    if (fromTg) {
-      return parseInt(fromTg);
-    }
-    // 2. В ссылке передан персональный user_id от бота
+    if (fromTg) return parseInt(fromTg);
     const urlParams = new URLSearchParams(window.location.search);
     const fromUrl = urlParams.get('user_id');
-    if (fromUrl) {
-      return parseInt(fromUrl);
-    }
-    // 3. Только на ПК в обычном браузере — локально выбранный аккаунт для администрирования
+    if (fromUrl) return parseInt(fromUrl);
     const fromStorage = localStorage.getItem('desktop_admin_selected_user_id');
-    if (fromStorage) {
-      return parseInt(fromStorage);
-    }
+    if (fromStorage) return parseInt(fromStorage);
   } catch (e) {}
   return 0;
 }
@@ -34,7 +25,102 @@ function resolveUserId() {
 let userId = resolveUserId();
 const userName = window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || '';
 const STORAGE_KEY = 'avito_parser_config';
+let API_BASE = null;
+let currentUrls = [];
 
+// ===== Утилиты =====
+function getApiUrlFromParams() {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramUrl = urlParams.get('api_url');
+    if (paramUrl && (paramUrl.startsWith('https://') || paramUrl.startsWith('http://'))) {
+      return paramUrl.replace(/\/$/, '');
+    }
+  } catch (e) {}
+  return null;
+}
+
+function getTargetApi() {
+  if (API_BASE !== null) return API_BASE;
+  return getApiUrlFromParams();
+}
+
+function customFetch(url, options = {}) {
+  options.headers = Object.assign({
+    'Content-Type': 'application/json',
+    'bypass-tunnel-reminder': 'true',
+    'ngrok-skip-browser-warning': 'true'
+  }, options.headers || {});
+  return fetch(url, options);
+}
+
+function loadLocal() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e) { return {}; }
+}
+function saveLocal(cfg) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+}
+
+// ===== Детекция API =====
+async function detectAPI() {
+  const paramApi = getApiUrlFromParams();
+
+  // Telegram WebApp на телефоне — используем api_url из параметров
+  if (isTgWebApp) {
+    if (paramApi) {
+      // Проверяем, жив ли туннель, с коротким таймаутом
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 3000);
+        const res = await fetch(paramApi + '/api/config?user_id=0', {
+          signal: ctrl.signal,
+          headers: { 'bypass-tunnel-reminder': 'true', 'ngrok-skip-browser-warning': 'true' }
+        });
+        clearTimeout(timer);
+        if (res.ok) {
+          API_BASE = paramApi;
+          console.log('[MiniApp] Туннель жив:', paramApi);
+          return;
+        }
+      } catch(e) {
+        console.warn('[MiniApp] Туннель недоступен:', e.message);
+      }
+    }
+    API_BASE = null;
+    return;
+  }
+
+  // Localhost на ПК
+  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+    API_BASE = '';
+    return;
+  }
+
+  // GitHub Pages на ПК — кастомный URL из localStorage
+  const customApi = localStorage.getItem('desktop_admin_custom_api_url');
+  if (customApi) {
+    API_BASE = customApi.trim().replace(/\/$/, '');
+    return;
+  }
+
+  API_BASE = paramApi || null;
+}
+
+function saveCustomApiUrl() {
+  const val = document.getElementById('pc-api-url-input').value.trim();
+  if (val) {
+    localStorage.setItem('desktop_admin_custom_api_url', val);
+    API_BASE = val.trim().replace(/\/$/, '');
+    alert('✅ URL API сохранён! Переподключение...');
+  } else {
+    localStorage.removeItem('desktop_admin_custom_api_url');
+    API_BASE = null;
+    alert('URL сброшен.');
+  }
+  loadConfig();
+}
+
+// ===== UI: профиль пользователя =====
 async function updateUserIdDisplay() {
   const displayEl = document.getElementById('user-id-display');
   const dropdownEl = document.getElementById('user-selector-dropdown');
@@ -44,24 +130,20 @@ async function updateUserIdDisplay() {
   const pcInput = document.getElementById('pc-api-url-input');
 
   if (isTgWebApp) {
-    // На смартфоне в Telegram — строго фиксированный профиль текущего пользователя
     if (displayEl) displayEl.textContent = userId + (userName ? ' (' + userName + ')' : '');
     if (dropdownEl) dropdownEl.style.display = 'none';
     if (changeBtn) changeBtn.style.display = 'none';
     if (pcBar) pcBar.style.display = 'none';
   } else {
-    // На ПК в обычном браузере — админ-режим со списком пользователей
     if (displayEl) displayEl.textContent = userId ? userId : 'Не выбран';
     if (changeBtn) changeBtn.style.display = 'inline-block';
-    
-    // Показываем панель подключения к серверу
     if (pcBar) pcBar.style.display = 'flex';
     
-    const targetApi = getTargetApi();
     if (pcInput && !pcInput.value) {
       pcInput.value = localStorage.getItem('desktop_admin_custom_api_url') || '';
     }
 
+    const targetApi = getTargetApi();
     if (targetApi !== null) {
       if (pcStatus) {
         pcStatus.textContent = '🟢 Подключен ' + (targetApi === '' ? '(Localhost)' : '(Туннель)');
@@ -73,7 +155,7 @@ async function updateUserIdDisplay() {
           const res = await customFetch(url);
           const data = await res.json();
           if (data && data.ok && data.users && data.users.length) {
-            dropdownEl.innerHTML = '<option value="">-- Выберите профиль ПК --</option>';
+            dropdownEl.innerHTML = '<option value="">-- Выберите профиль --</option>';
             data.users.forEach(u => {
               const opt = document.createElement('option');
               opt.value = u.user_id;
@@ -101,14 +183,13 @@ async function updateUserIdDisplay() {
 
 function onUserSelectChange(val) {
   if (!val) return;
-  const uid = parseInt(val);
-  userId = uid;
-  localStorage.setItem('desktop_admin_selected_user_id', uid);
+  userId = parseInt(val);
+  localStorage.setItem('desktop_admin_selected_user_id', userId);
   loadConfig();
 }
 
 function promptChangeUserId() {
-  const input = prompt('Введите Telegram ID пользователя для просмотра на ПК:', userId || '');
+  const input = prompt('Введите Telegram ID:', userId || '');
   if (input !== null) {
     const uid = parseInt(input.trim());
     if (uid && !isNaN(uid)) {
@@ -120,75 +201,7 @@ function promptChangeUserId() {
   }
 }
 
-let API_BASE = null; // Будет определён динамически
-
-// ===== Извлечение api_url из параметров URL или initData =====
-function getApiUrlFromParams() {
-  try {
-    const urlParams = new URLSearchParams(window.location.search);
-    const paramUrl = urlParams.get('api_url');
-    if (paramUrl && (paramUrl.startsWith('https://') || paramUrl.startsWith('http://'))) {
-      return paramUrl.replace(/\/$/, '');
-    }
-  } catch (e) {}
-  return null;
-}
-
-function customFetch(url, options = {}) {
-  options.headers = Object.assign({
-    'Content-Type': 'application/json',
-    'bypass-tunnel-reminder': 'true',
-    'ngrok-skip-browser-warning': 'true'
-  }, options.headers || {});
-  return fetch(url, options);
-}
-
-// ===== Детекция подключенного сервера на ПК =====
-async function detectAPI() {
-  const paramApi = getApiUrlFromParams();
-
-  // Если запущено на смартфоне в Telegram WebApp
-  if (isTgWebApp) {
-    API_BASE = paramApi || null;
-    return;
-  }
-
-  // Если запущено прямо на самом ПК в браузере (localhost)
-  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-    API_BASE = '';
-    return;
-  }
-
-  // Если открыто в обычном браузере на ПК с внешнего хостинга (например, GitHub Pages)
-  const customApi = localStorage.getItem('desktop_admin_custom_api_url');
-  if (customApi) {
-    API_BASE = customApi.trim().replace(/\/$/, '');
-    return;
-  }
-
-  API_BASE = paramApi || null;
-}
-
-function saveCustomApiUrl() {
-  const val = document.getElementById('pc-api-url-input').value.trim();
-  if (val) {
-    localStorage.setItem('desktop_admin_custom_api_url', val);
-    alert('URL кастомного API сохранен! Переподключение...');
-  } else {
-    localStorage.removeItem('desktop_admin_custom_api_url');
-    alert('Кастомный URL сброшен. Используется стандартное подключение.');
-  }
-  loadConfig();
-}
-
-function loadLocal() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e) { return {}; }
-}
-function saveLocal(cfg) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
-}
-
-// ===== Переключение вкладок =====
+// ===== Вкладки =====
 function switchTab(tabId, el) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -200,26 +213,22 @@ function switchTab(tabId, el) {
 
 // ===== Загрузка конфига =====
 async function loadConfig() {
-  updateUserIdDisplay();
-
-  // 1. Мгновенно выводим сохранённые данные из памяти — 0 мс ожидания!
+  // Мгновенно показываем локальный кеш
   fillForm(loadLocal());
-
+  
   const badge = document.getElementById('sub-badge');
   const subTitle = document.getElementById('sub-title');
   const subIcon = document.getElementById('sub-icon');
   const subDesc = document.getElementById('sub-desc');
-  const connStatus = document.getElementById('conn-status');
 
-  badge.textContent = userName ? ('👋 ' + userName) : '📱 Mini App';
-  badge.className = 'badge badge-active';
-  connStatus.textContent = '🟢 Подключено к боту';
-  connStatus.className = 'conn-badge conn-online';
+  if (badge) badge.textContent = userName ? ('👋 ' + userName) : '📱 Mini App';
+  if (badge) badge.className = 'badge badge-active';
 
   await detectAPI();
+  updateUserIdDisplay();
 
   const targetApi = getTargetApi();
-  if (targetApi !== null) {
+  if (targetApi !== null && userId) {
     try {
       const url = (targetApi === '') ? ('/api/config?user_id=' + userId) : (targetApi + '/api/config?user_id=' + userId);
       const res = await customFetch(url);
@@ -230,30 +239,30 @@ async function loadConfig() {
         saveLocal(cfg);
 
         if (data.is_sub_active) {
-          subIcon.textContent = '🟢';
-          subTitle.textContent = 'Подписка активна!';
-          subDesc.textContent = 'До: ' + (data.sub_expires_at ? data.sub_expires_at.slice(0,10) : 'Бессрочно');
+          if (subIcon) subIcon.textContent = '🟢';
+          if (subTitle) subTitle.textContent = 'Подписка активна!';
+          if (subDesc) subDesc.textContent = 'До: ' + (data.sub_expires_at ? data.sub_expires_at.slice(0,10) : 'Бессрочно');
         } else {
-          subIcon.textContent = '🔴';
-          subTitle.textContent = 'Подписка не активна';
-          subDesc.textContent = 'Активируйте промокод командой /promo в боте.';
+          if (subIcon) subIcon.textContent = '🔴';
+          if (subTitle) subTitle.textContent = 'Подписка не активна';
+          if (subDesc) subDesc.textContent = 'Активируйте промокод: /promo в боте.';
         }
       }
     } catch(e) {
-      console.warn('[MiniApp] Загрузка сервера в фоновом режиме:', e.message);
+      console.warn('[MiniApp] Загрузка конфига:', e.message);
     }
   }
 }
 
-let currentUrls = [];
-
+// ===== Управление ссылками =====
 function renderUrlsList() {
   const container = document.getElementById('urls-list-container');
+  const hiddenInput = document.getElementById('urls-input');
   if (!container) return;
 
   if (currentUrls.length === 0) {
     container.innerHTML = '<div class="text-center" style="padding:15px; color:var(--text-muted); font-size:12px;">Список ссылок пуст. Вставьте ссылку выше и нажмите кнопку.</div>';
-    document.getElementById('urls-input').value = '';
+    if (hiddenInput) hiddenInput.value = '';
     return;
   }
 
@@ -280,13 +289,12 @@ function renderUrlsList() {
         <span class="url-text-title">${title}</span>
         <a href="${url}" target="_blank" class="url-text-link">${url}</a>
       </div>
-      <button type="button" class="delete-url-btn" onclick="deleteLinkUrl(${index})" title="Удалить ссылку">🗑️</button>
+      <button type="button" class="delete-url-btn" onclick="deleteLinkUrl(${index})" title="Удалить">🗑️</button>
     `;
     container.appendChild(item);
   });
 
-  // Синхронизируем для отправки формы
-  document.getElementById('urls-input').value = currentUrls.join('\n');
+  if (hiddenInput) hiddenInput.value = currentUrls.join('\n');
 }
 
 function addLinkUrl() {
@@ -295,7 +303,7 @@ function addLinkUrl() {
   if (!url) return;
 
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    alert('Пожалуйста, введите корректную ссылку, начинающуюся с http:// или https://');
+    alert('Введите корректную ссылку (http:// или https://)');
     return;
   }
 
@@ -319,16 +327,17 @@ function fillForm(cfg) {
   currentUrls = cfg.urls || [];
   renderUrlsList();
 
-  document.getElementById('min-price').value = cfg.min_price || 0;
-  document.getElementById('max-price').value = cfg.max_price || 99999999;
-  document.getElementById('count-page').value = cfg.count || 1;
-  document.getElementById('max-age').value = cfg.max_age || 0;
-  document.getElementById('max-age-unit').value = cfg.max_age_unit || 'minutes';
-  document.getElementById('reserv-mode').value = cfg.reserv_mode || 'ignore';
-  document.getElementById('only-discount').checked = !!cfg.only_with_discount;
-  document.getElementById('only-photo').checked = !!cfg.only_with_photo;
-  document.getElementById('white-list').value = (cfg.keys_word_white_list || []).join('\n');
-  document.getElementById('black-list').value = (cfg.keys_word_black_list || []).join('\n');
+  const el = (id) => document.getElementById(id);
+  if (el('min-price')) el('min-price').value = cfg.min_price || 0;
+  if (el('max-price')) el('max-price').value = cfg.max_price || 99999999;
+  if (el('count-page')) el('count-page').value = cfg.count || 1;
+  if (el('max-age')) el('max-age').value = cfg.max_age || 0;
+  if (el('max-age-unit')) el('max-age-unit').value = cfg.max_age_unit || 'minutes';
+  if (el('reserv-mode')) el('reserv-mode').value = cfg.reserv_mode || 'ignore';
+  if (el('only-discount')) el('only-discount').checked = !!cfg.only_with_discount;
+  if (el('only-photo')) el('only-photo').checked = !!cfg.only_with_photo;
+  if (el('white-list')) el('white-list').value = (cfg.keys_word_white_list || []).join('\n');
+  if (el('black-list')) el('black-list').value = (cfg.keys_word_black_list || []).join('\n');
 }
 
 function collectForm() {
@@ -348,70 +357,74 @@ function collectForm() {
   };
 }
 
-function getTargetApi() {
-  if (API_BASE !== null) return API_BASE;
-  return getApiUrlFromParams();
-}
-
-// ===== Сохранение =====
+// ===== СОХРАНЕНИЕ =====
 async function saveSettings() {
   const btn = document.getElementById('save-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Сохранение...';
 
   const payload = collectForm();
+  console.log('[MiniApp] Сохраняем:', JSON.stringify({user_id: payload.user_id, urls_count: payload.urls.length}));
+
+  // Всегда сохраняем локально
   saveLocal(payload);
 
   let savedOnServer = false;
   let serverError = null;
-  const targetApi = getTargetApi();
 
-  // Прямой HTTP POST к боту на ПК (через Cloudflare Tunnel / Localhost)
+  // === Способ 1: HTTP POST напрямую на сервер ===
+  const targetApi = getTargetApi();
   if (targetApi !== null) {
     try {
       const url = (targetApi === '') ? '/api/config' : (targetApi + '/api/config');
+      console.log('[MiniApp] POST к', url);
       const res = await customFetch(url, {
         method: 'POST',
         body: JSON.stringify(payload)
       });
       const data = await res.json();
+      console.log('[MiniApp] Ответ сервера:', JSON.stringify(data));
       if (data && data.ok) {
         savedOnServer = true;
       } else if (data && data.message) {
         serverError = data.message;
       }
     } catch(e) {
-      console.warn('[MiniApp] POST error:', e.message);
+      console.warn('[MiniApp] HTTP POST ошибка:', e.message);
     }
   }
 
-  // Резервный способ: Telegram WebApp sendData (ТОЛЬКО если HTTP POST не удался)
-  if (!savedOnServer && !serverError && tg && tg.sendData) {
+  // === Способ 2: Telegram sendData (если HTTP не удался И мы в Telegram WebApp) ===
+  if (!savedOnServer && !serverError && isTgWebApp && tg && tg.sendData) {
     try {
+      console.log('[MiniApp] Отправляем через Telegram sendData...');
       tg.sendData(JSON.stringify({ action: 'save_config', ...payload }));
-      btn.textContent = '✅ Передано через Telegram!';
-      if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-      savedOnServer = true;
+      // sendData() закрывает Mini App — пользователь увидит подтверждение в чате
+      return;
     } catch(e) {
-      console.warn('[MiniApp] sendData unsupported in this context:', e.message);
+      console.warn('[MiniApp] sendData ошибка:', e.message);
     }
   }
 
+  // === Результат ===
   if (savedOnServer) {
+    btn.textContent = '✅ Сохранено!';
     if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-    btn.textContent = '✅ Сохранено на ПК!';
-  } else {
+  } else if (serverError) {
     btn.textContent = '⚠️ Ошибка!';
     if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
-    if (serverError) {
-      alert('⚠️ Ошибка сервера: ' + serverError);
+    alert('⚠️ Ошибка сервера: ' + serverError);
+  } else {
+    btn.textContent = '⚠️ Нет связи с сервером';
+    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+    if (isTgWebApp) {
+      alert('⚠️ Сервер на ПК не отвечает.\n\nПерезапустите бота на ПК и откройте Mini App заново через /start.');
     } else {
-      alert('⚠️ Внимание: Подключение к ПК отсутствует!\n\nНовые ссылки НЕ были сохранены на сервере. Пожалуйста, зайдите в Telegram-бот на телефоне, отправьте команду /start или /menu и откройте Mini App заново через новую присланную кнопку, чтобы обновить адрес подключения.');
+      alert('⚠️ Подключение к серверу отсутствует.\n\nУбедитесь, что AvitoParser запущен на ПК и введите адрес туннеля в панели сверху.');
     }
   }
 
-  // Восстанавливаем кнопку через 2 секунды, чтобы можно было сохранять многократно
-  setTimeout(() => { btn.disabled = false; btn.textContent = '💾 Сохранить настройки'; }, 2000);
+  setTimeout(() => { btn.disabled = false; btn.textContent = '💾 Сохранить настройки'; }, 2500);
 }
 
 // ===== Загрузка Лидов =====
@@ -420,18 +433,18 @@ async function loadLeads() {
   const targetApi = getTargetApi();
 
   if (targetApi === null) {
-    box.innerHTML = '<div class="empty-state">📊 Заявки транслируются прямо в бот Telegram. Нажмите "📲 Подключить заявки" в меню бота.</div>';
+    box.innerHTML = '<div class="empty-state">📊 Запустите парсер на ПК для просмотра заявок.</div>';
     return;
   }
 
-  box.innerHTML = '<div class="empty-state">⏳ Загрузка лидов с ПК...</div>';
+  box.innerHTML = '<div class="empty-state">⏳ Загрузка...</div>';
   try {
     const url = (targetApi === '') ? ('/api/leads?user_id=' + userId) : (targetApi + '/api/leads?user_id=' + userId);
     const res = await customFetch(url);
     const data = await res.json();
     const leads = data.leads || [];
     if (!leads.length) {
-      box.innerHTML = '<div class="empty-state">Объявлений пока нет. Запустите парсер на ПК.</div>';
+      box.innerHTML = '<div class="empty-state">Объявлений пока нет.</div>';
       return;
     }
     box.innerHTML = '';
@@ -445,7 +458,7 @@ async function loadLeads() {
       box.appendChild(el);
     });
   } catch(e) {
-    box.innerHTML = '<div class="empty-state">Не удалось загрузить лиды с ПК.</div>';
+    box.innerHTML = '<div class="empty-state">Не удалось загрузить данные.</div>';
   }
 }
 
@@ -456,11 +469,12 @@ async function redeemPromo() {
   const code = input.value.trim();
   if (!code) return;
 
-  const targetApi = API_BASE || getApiUrlFromParams();
+  const targetApi = getTargetApi();
 
-  if (targetApi) {
+  if (targetApi !== null) {
     try {
-      const res = await customFetch(targetApi + '/api/redeem_promo', {
+      const url = (targetApi === '') ? '/api/redeem_promo' : (targetApi + '/api/redeem_promo');
+      const res = await customFetch(url, {
         method: 'POST',
         body: JSON.stringify({user_id: userId, code: code})
       });
@@ -472,7 +486,7 @@ async function redeemPromo() {
     } catch(e) {}
   }
 
-  if (tg && tg.sendData) {
+  if (isTgWebApp && tg && tg.sendData) {
     tg.sendData(JSON.stringify({ action: 'redeem_promo', user_id: userId, code: code }));
     result.style.color = '#10B981';
     result.textContent = '🎁 Промокод отправлен боту!';
@@ -480,7 +494,7 @@ async function redeemPromo() {
   }
 
   result.style.color = '#EF4444';
-  result.textContent = 'Используйте команду /promo ' + code + ' в чате с ботом.';
+  result.textContent = 'Используйте /promo ' + code + ' в чате с ботом.';
 }
 
 document.addEventListener('DOMContentLoaded', loadConfig);
