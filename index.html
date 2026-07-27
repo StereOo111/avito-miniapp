@@ -44,7 +44,6 @@
     <nav class="nav-tabs">
       <button class="tab-btn active" onclick="switchTab('links', this)">🎯 Ссылки</button>
       <button class="tab-btn" onclick="switchTab('filters', this)">🔍 Фильтры</button>
-      <button class="tab-btn" onclick="switchTab('leads', this)">📊 Заявки</button>
       <button class="tab-btn" onclick="switchTab('sub', this)">💳 Подписка</button>
     </nav>
 
@@ -118,18 +117,7 @@
       </div>
     </section>
 
-    <!-- Заявки -->
-    <section id="tab-leads" class="tab-content">
-      <div class="card">
-        <div class="header-between">
-          <h2>📊 Лиды</h2>
-          <button class="btn btn-secondary btn-sm" onclick="loadLeads()">🔄</button>
-        </div>
-        <div id="leads-container" class="leads-list">
-          <div class="empty-state">Нажмите 🔄 для загрузки</div>
-        </div>
-      </div>
-    </section>
+
 
     <!-- Подписка -->
     <section id="tab-sub" class="tab-content">

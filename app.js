@@ -192,7 +192,6 @@ function switchTab(tabId, el) {
   if (el) el.classList.add('active');
   const t = document.getElementById('tab-' + tabId);
   if (t) t.classList.add('active');
-  if (tabId === 'leads') loadLeads();
 }
 
 // ===== Загрузка конфига =====
@@ -468,71 +467,7 @@ async function saveSettings() {
   }
 }
 
-// ===== Загрузка Лидов =====
-let leadsInterval = null;
 
-async function loadLeads() {
-  const box = document.getElementById('leads-container');
-  if (!box) return;
-
-  const targetApi = getTargetApi();
-  if (targetApi === null) {
-    box.innerHTML = '<div class="empty-state">📊 Запустите парсер на ПК для просмотра спарсенных объявлений.</div>';
-    return;
-  }
-
-  if (!box.children.length) {
-    box.innerHTML = '<div class="empty-state">⏳ Загрузка спарсенных объявлений...</div>';
-  }
-
-  try {
-    const url = (targetApi === '') ? ('/api/leads?user_id=' + userId) : (targetApi + '/api/leads?user_id=' + userId);
-    const res = await customFetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    const leads = data.leads || [];
-
-    if (!leads.length) {
-      box.innerHTML = '<div class="empty-state">🎯 Спарсенных объявлений пока нет. Настройте ссылки и запустите парсер!</div>';
-      return;
-    }
-
-    let html = '';
-    leads.forEach(l => {
-      const priceStr = l.price ? (Number(l.price).toLocaleString('ru-RU') + ' ₽') : 'Цена не указана';
-      const timeStr = l.created_at ? l.created_at.slice(11, 16) : '';
-      const sellerStr = l.seller_name ? (' 👤 ' + l.seller_name) : '';
-
-      html += `
-        <div class="lead-item">
-          <a href="${l.url || '#'}" target="_blank" class="lead-title">${l.title || 'Объявление'}</a>
-          <div class="lead-price">${priceStr}</div>
-          <div class="lead-meta">📍 ${l.location || '—'} ${sellerStr} ${timeStr ? (' • ⏱️ ' + timeStr) : ''}</div>
-        </div>
-      `;
-    });
-
-    box.innerHTML = html;
-  } catch(e) {
-    console.warn('[MiniApp] Ошибка загрузки лидов:', e);
-    if (!box.children.length || box.querySelector('.empty-state')) {
-      box.innerHTML = '<div class="empty-state">⚠️ Не удалось подгрузить объявления. Проверьте связь с ботом на ПК.</div>';
-    }
-  }
-
-  // Настраиваем фоновое авто-обновление каждые 12 секунд
-  if (!leadsInterval) {
-    leadsInterval = setInterval(() => {
-      const leadsTab = document.getElementById('tab-leads');
-      if (leadsTab && leadsTab.classList.contains('active')) {
-        loadLeads();
-      } else {
-        clearInterval(leadsInterval);
-        leadsInterval = null;
-      }
-    }, 12000);
-  }
-}
 
 // ===== Активация промокода =====
 async function redeemPromo() {
