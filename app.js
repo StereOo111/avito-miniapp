@@ -396,77 +396,62 @@ async function saveSettings() {
   btn.textContent = '⏳ Сохранение...';
 
   let savedOnServer = false;
-  let savedViaApi = false;
-  let serverError = null;
 
   try {
     const payload = collectForm();
-    console.log('[MiniApp] Сохраняем:', JSON.stringify({user_id: payload.user_id, urls_count: payload.urls.length}));
+    console.log('[MiniApp] Сохраняем настройки:', JSON.stringify({user_id: payload.user_id, urls_count: payload.urls.length}));
 
-    // 1. Сохраняем локально
+    // 1. Сохраняем в локальный кэш
     saveLocal(payload);
 
-    // 2. HTTP POST к серверу
+    const tg = window.Telegram?.WebApp;
+    const tgPayload = Object.assign({ action: 'save_config' }, payload);
+
+    // 2. МГНОВЕННЫЙ нативный отправщик Telegram WebApp (не требует туннелей и портов!)
+    if (tg && typeof tg.sendData === 'function') {
+      try {
+        console.log('[MiniApp] Нативная отправка через Telegram.WebApp.sendData()...');
+        tg.sendData(JSON.stringify(tgPayload));
+        savedOnServer = true;
+      } catch(e) {
+        console.warn('[MiniApp] sendData error:', e);
+      }
+    }
+
+    // 3. Параллельный HTTP POST к серверу (для работы из браузера на ПК)
     const targetApi = getTargetApi();
-    if (targetApi !== null) {
+    if (targetApi !== null && !savedOnServer) {
       try {
         const url = (targetApi === '') ? '/api/config' : (targetApi + '/api/config');
         console.log('[MiniApp] POST к', url);
         const ctrl = new AbortController();
-        // A cold Cloudflare tunnel can take a few seconds to answer.
-        const timer = setTimeout(() => ctrl.abort(), 10000);
+        const timer = setTimeout(() => ctrl.abort(), 3000);
         const res = await customFetch(url, {
           method: 'POST',
           body: JSON.stringify(payload),
           signal: ctrl.signal
         });
         clearTimeout(timer);
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        console.log('[MiniApp] Ответ сервера:', JSON.stringify(data));
-        if (data && data.ok) {
-          savedOnServer = true;
-          savedViaApi = true;
-        } else if (data && data.message) {
-          serverError = data.message;
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.ok) savedOnServer = true;
         }
       } catch(e) {
-        console.warn('[MiniApp] HTTP POST ошибка (переход к sendData):', e.message);
+        console.warn('[MiniApp] HTTP POST fallback error:', e);
       }
     }
 
-    // 3. Telegram sendData фоллбек (внутри Telegram WebApp)
-    if (!savedOnServer && !serverError && isTgWebApp && tg && tg.sendData) {
-      try {
-        console.log('[MiniApp] Отправляем через Telegram sendData...');
-        tg.sendData(JSON.stringify({ action: 'save_config', ...payload }));
-        savedOnServer = true;
-      } catch(e) {
-        console.warn('[MiniApp] sendData ошибка:', e.message);
-      }
-    }
-
-    // 4. Отражение результата на кнопке
+    // 4. Индикация результата
     if (savedOnServer) {
       btn.textContent = '✅ Сохранено!';
       if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-      // Telegram closes a Mini App only after its settings were confirmed by
-      // the server.  sendData itself closes the app in supported launch modes.
-      if (savedViaApi && isTgWebApp && tg?.close) {
-        setTimeout(() => tg.close(), 500);
+      if (tg?.close) {
+        setTimeout(() => tg.close(), 400);
       }
-    } else if (serverError) {
-      btn.textContent = '⚠️ Ошибка!';
-      if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
-      alert('⚠️ Ошибка сервера: ' + serverError);
     } else {
       btn.textContent = '⚠️ Нет связи';
       if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
-      if (isTgWebApp) {
-        alert('⚠️ Сервер на ПК не отвечает.\n\nПерезапустите бота на ПК и откройте Mini App заново.');
-      } else {
-        alert('⚠️ Подключение к серверу отсутствует.\n\nУбедитесь, что AvitoParser запущен на ПК и введите адрес туннеля в панели сверху.');
-      }
+      alert('⚠️ Не удалось передать настройки в Telegram бот.\nУбедитесь, что вы открыли Mini App через кнопку в Telegram!');
     }
   } catch(err) {
     console.error('[MiniApp] Ошибка функции сохранения:', err);
