@@ -65,9 +65,9 @@ function saveLocal(cfg) {
 async function detectAPI() {
   const paramApi = getApiUrlFromParams();
 
-  // Если Mini App открыт по адресу localhost или напрямую по адресу туннеля (trycloudflare, lhr.life, serveo и т.д.)
+  // Если Mini App открыт по адресу localhost или напрямую по адресу туннеля (trycloudflare, lhr.life, serveo, serveousercontent и т.д.)
   const h = location.hostname;
-  if (h === 'localhost' || h === '127.0.0.1' || h.endsWith('trycloudflare.com') || h.endsWith('lhr.life') || h.endsWith('lhrtunnel.link') || h.endsWith('serveo.net') || h.endsWith('pinggy.link') || h.endsWith('ngrok-free.app')) {
+  if (h === 'localhost' || h === '127.0.0.1' || h.endsWith('trycloudflare.com') || h.endsWith('lhr.life') || h.endsWith('lhrtunnel.link') || h.endsWith('serveo.net') || h.endsWith('serveousercontent.com') || h.endsWith('pinggy.link') || h.endsWith('ngrok-free.app')) {
     API_BASE = '';
     console.log('[MiniApp] Работаем напрямую (Same-Origin / Localhost)');
     return;
