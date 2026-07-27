@@ -378,10 +378,14 @@ async function saveSettings() {
     try {
       const url = (targetApi === '') ? '/api/config' : (targetApi + '/api/config');
       console.log('[MiniApp] POST к', url);
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 1500); // 1.5 сек таймаут
       const res = await customFetch(url, {
         method: 'POST',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: ctrl.signal
       });
+      clearTimeout(timer);
       const data = await res.json();
       console.log('[MiniApp] Ответ сервера:', JSON.stringify(data));
       if (data && data.ok) {
@@ -390,7 +394,7 @@ async function saveSettings() {
         serverError = data.message;
       }
     } catch(e) {
-      console.warn('[MiniApp] HTTP POST ошибка:', e.message);
+      console.warn('[MiniApp] HTTP POST ошибка (переход к sendData):', e.message);
     }
   }
 
@@ -399,7 +403,6 @@ async function saveSettings() {
     try {
       console.log('[MiniApp] Отправляем через Telegram sendData...');
       tg.sendData(JSON.stringify({ action: 'save_config', ...payload }));
-      // sendData() закрывает Mini App — пользователь увидит подтверждение в чате
       return;
     } catch(e) {
       console.warn('[MiniApp] sendData ошибка:', e.message);
