@@ -341,93 +341,128 @@ function fillForm(cfg) {
 }
 
 function collectForm() {
+  const el = (id) => document.getElementById(id);
+  const parseVal = (id, fallback) => {
+    const elem = el(id);
+    if (!elem) return fallback;
+    const val = parseInt(elem.value);
+    return isNaN(val) ? fallback : val;
+  };
+  const strVal = (id, fallback) => {
+    const elem = el(id);
+    return elem ? elem.value : fallback;
+  };
+  const boolVal = (id) => {
+    const elem = el(id);
+    return elem ? !!elem.checked : false;
+  };
+  const listVal = (id) => {
+    const elem = el(id);
+    if (!elem || !elem.value) return [];
+    return elem.value.split('\n').map(s => s.trim()).filter(Boolean);
+  };
+
   return {
     user_id: userId,
-    urls: currentUrls,
-    min_price: parseInt(document.getElementById('min-price').value) || 0,
-    max_price: parseInt(document.getElementById('max-price').value) || 99999999,
-    count: parseInt(document.getElementById('count-page').value) || 1,
-    max_age: parseInt(document.getElementById('max-age').value) || 0,
-    max_age_unit: document.getElementById('max-age-unit').value,
-    reserv_mode: document.getElementById('reserv-mode').value,
-    only_with_discount: document.getElementById('only-discount').checked,
-    only_with_photo: document.getElementById('only-photo').checked,
-    keys_word_white_list: document.getElementById('white-list').value.split('\n').filter(w => w.trim()),
-    keys_word_black_list: document.getElementById('black-list').value.split('\n').filter(b => b.trim()),
+    urls: Array.isArray(currentUrls) ? currentUrls : [],
+    min_price: parseVal('min-price', 0),
+    max_price: parseVal('max-price', 99999999),
+    count: parseVal('count-page', 1),
+    max_age: parseVal('max-age', 0),
+    max_age_unit: strVal('max-age-unit', 'minutes'),
+    reserv_mode: strVal('reserv-mode', 'ignore'),
+    only_with_discount: boolVal('only-discount'),
+    only_with_photo: boolVal('only-photo'),
+    keys_word_white_list: listVal('white-list'),
+    keys_word_black_list: listVal('black-list'),
   };
 }
 
 // ===== СОХРАНЕНИЕ =====
 async function saveSettings() {
   const btn = document.getElementById('save-btn');
+  if (!btn) return;
+
   btn.disabled = true;
   btn.textContent = '⏳ Сохранение...';
-
-  const payload = collectForm();
-  console.log('[MiniApp] Сохраняем:', JSON.stringify({user_id: payload.user_id, urls_count: payload.urls.length}));
-
-  // Всегда сохраняем локально
-  saveLocal(payload);
 
   let savedOnServer = false;
   let serverError = null;
 
-  // === Способ 1: HTTP POST напрямую на сервер ===
-  const targetApi = getTargetApi();
-  if (targetApi !== null) {
-    try {
-      const url = (targetApi === '') ? '/api/config' : (targetApi + '/api/config');
-      console.log('[MiniApp] POST к', url);
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 1500); // 1.5 сек таймаут
-      const res = await customFetch(url, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-        signal: ctrl.signal
-      });
-      clearTimeout(timer);
-      const data = await res.json();
-      console.log('[MiniApp] Ответ сервера:', JSON.stringify(data));
-      if (data && data.ok) {
-        savedOnServer = true;
-      } else if (data && data.message) {
-        serverError = data.message;
+  try {
+    const payload = collectForm();
+    console.log('[MiniApp] Сохраняем:', JSON.stringify({user_id: payload.user_id, urls_count: payload.urls.length}));
+
+    // 1. Сохраняем локально
+    saveLocal(payload);
+
+    // 2. HTTP POST к серверу
+    const targetApi = getTargetApi();
+    if (targetApi !== null) {
+      try {
+        const url = (targetApi === '') ? '/api/config' : (targetApi + '/api/config');
+        console.log('[MiniApp] POST к', url);
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 1500); // 1.5 сек таймаут
+        const res = await customFetch(url, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+          signal: ctrl.signal
+        });
+        clearTimeout(timer);
+        const data = await res.json();
+        console.log('[MiniApp] Ответ сервера:', JSON.stringify(data));
+        if (data && data.ok) {
+          savedOnServer = true;
+        } else if (data && data.message) {
+          serverError = data.message;
+        }
+      } catch(e) {
+        console.warn('[MiniApp] HTTP POST ошибка (переход к sendData):', e.message);
       }
-    } catch(e) {
-      console.warn('[MiniApp] HTTP POST ошибка (переход к sendData):', e.message);
     }
-  }
 
-  // === Способ 2: Telegram sendData (если HTTP не удался И мы в Telegram WebApp) ===
-  if (!savedOnServer && !serverError && isTgWebApp && tg && tg.sendData) {
-    try {
-      console.log('[MiniApp] Отправляем через Telegram sendData...');
-      tg.sendData(JSON.stringify({ action: 'save_config', ...payload }));
-      return;
-    } catch(e) {
-      console.warn('[MiniApp] sendData ошибка:', e.message);
+    // 3. Telegram sendData фоллбек (внутри Telegram WebApp)
+    if (!savedOnServer && !serverError && isTgWebApp && tg && tg.sendData) {
+      try {
+        console.log('[MiniApp] Отправляем через Telegram sendData...');
+        tg.sendData(JSON.stringify({ action: 'save_config', ...payload }));
+        savedOnServer = true;
+      } catch(e) {
+        console.warn('[MiniApp] sendData ошибка:', e.message);
+      }
     }
-  }
 
-  // === Результат ===
-  if (savedOnServer) {
-    btn.textContent = '✅ Сохранено!';
-    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-  } else if (serverError) {
-    btn.textContent = '⚠️ Ошибка!';
-    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
-    alert('⚠️ Ошибка сервера: ' + serverError);
-  } else {
-    btn.textContent = '⚠️ Нет связи с сервером';
-    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
-    if (isTgWebApp) {
-      alert('⚠️ Сервер на ПК не отвечает.\n\nПерезапустите бота на ПК и откройте Mini App заново через /start.');
+    // 4. Отражение результата на кнопке
+    if (savedOnServer) {
+      btn.textContent = '✅ Сохранено!';
+      if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+    } else if (serverError) {
+      btn.textContent = '⚠️ Ошибка!';
+      if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+      alert('⚠️ Ошибка сервера: ' + serverError);
     } else {
-      alert('⚠️ Подключение к серверу отсутствует.\n\nУбедитесь, что AvitoParser запущен на ПК и введите адрес туннеля в панели сверху.');
+      btn.textContent = '⚠️ Нет связи';
+      if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+      if (isTgWebApp) {
+        alert('⚠️ Сервер на ПК не отвечает.\n\nПерезапустите бота на ПК и откройте Mini App заново.');
+      } else {
+        alert('⚠️ Подключение к серверу отсутствует.\n\nУбедитесь, что AvitoParser запущен на ПК и введите адрес туннеля в панели сверху.');
+      }
     }
+  } catch(err) {
+    console.error('[MiniApp] Ошибка функции сохранения:', err);
+    btn.textContent = '⚠️ Ошибка!';
+    alert('❌ Ошибка сохранения: ' + err.message);
+  } finally {
+    // В любом случае разблокируем кнопку через 2.5 сек
+    setTimeout(() => {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '💾 Сохранить настройки';
+      }
+    }, 2500);
   }
-
-  setTimeout(() => { btn.disabled = false; btn.textContent = '💾 Сохранить настройки'; }, 2500);
 }
 
 // ===== Загрузка Лидов =====
