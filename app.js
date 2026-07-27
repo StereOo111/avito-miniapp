@@ -407,14 +407,25 @@ async function saveSettings() {
     const tg = window.Telegram?.WebApp;
     const tgPayload = Object.assign({ action: 'save_config' }, payload);
 
-    // 2. HTTP POST к туннелю сервера (Гарантированно работает из Inline-кнопок, Кнопки Меню и обычного браузера)
+    // 2. МГНОВЕННЫЙ нативный отправщик Telegram WebApp (не требует туннелей и портов!)
+    if (tg && typeof tg.sendData === 'function') {
+      try {
+        console.log('[MiniApp] Нативная отправка через Telegram.WebApp.sendData()...');
+        tg.sendData(JSON.stringify(tgPayload));
+        savedOnServer = true;
+      } catch(e) {
+        console.warn('[MiniApp] sendData error:', e);
+      }
+    }
+
+    // 3. Параллельный HTTP POST к серверу (для работы из браузера на ПК)
     const targetApi = getTargetApi();
-    if (targetApi !== null) {
+    if (targetApi !== null && !savedOnServer) {
       try {
         const url = (targetApi === '') ? '/api/config' : (targetApi + '/api/config');
-        console.log('[MiniApp] HTTP POST к', url);
+        console.log('[MiniApp] POST к', url);
         const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 6000);
+        const timer = setTimeout(() => ctrl.abort(), 3000);
         const res = await customFetch(url, {
           method: 'POST',
           body: JSON.stringify(payload),
@@ -427,15 +438,6 @@ async function saveSettings() {
         }
       } catch(e) {
         console.warn('[MiniApp] HTTP POST fallback error:', e);
-      }
-    // 3. Дополнительно вызываем нативный Telegram.WebApp.sendData() (если запущен из Reply-клавиатуры)
-    if (tg && typeof tg.sendData === 'function') {
-      try {
-        console.log('[MiniApp] Отправка через Telegram.WebApp.sendData()...');
-        tg.sendData(JSON.stringify(tgPayload));
-        savedOnServer = true;
-      } catch(e) {
-        console.warn('[MiniApp] sendData error:', e);
       }
     }
 
