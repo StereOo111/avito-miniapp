@@ -115,6 +115,8 @@ async function updateUserIdDisplay() {
   }
 }
 
+let isSubActive = true;
+
 // ===== Вкладки =====
 function switchTab(tabId, el) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -133,6 +135,7 @@ async function loadConfig() {
   const subTitle = document.getElementById('sub-title');
   const subIcon = document.getElementById('sub-icon');
   const subDesc = document.getElementById('sub-desc');
+  const saveBtn = document.getElementById('save-btn');
 
   if (badge) badge.textContent = userName ? ('👋 ' + userName) : '📱 Mini App';
   if (badge) badge.className = 'badge badge-active';
@@ -165,14 +168,28 @@ async function loadConfig() {
           fillForm(cfg);
           saveLocal(cfg);
 
-          if (data.is_sub_active) {
+          isSubActive = !!data.is_sub_active;
+
+          if (isSubActive) {
             if (subIcon) subIcon.textContent = '🟢';
             if (subTitle) subTitle.textContent = 'Подписка активна!';
             if (subDesc) subDesc.textContent = 'До: ' + (data.sub_expires_at ? data.sub_expires_at.slice(0,10) : 'Бессрочно');
+            if (saveBtn) {
+              saveBtn.disabled = false;
+              saveBtn.style.opacity = '1';
+              saveBtn.style.cursor = 'pointer';
+              saveBtn.textContent = '💾 Сохранить настройки';
+            }
           } else {
-            if (subIcon) subIcon.textContent = '🔴';
+            if (subIcon) subIcon.textContent = '🔒';
             if (subTitle) subTitle.textContent = 'Подписка не активна';
-            if (subDesc) subDesc.textContent = 'Активируйте промокод: /promo в боте.';
+            if (subDesc) subDesc.textContent = 'Активируйте промокод через /promo в боте!';
+            if (saveBtn) {
+              saveBtn.disabled = true;
+              saveBtn.style.opacity = '0.5';
+              saveBtn.style.cursor = 'not-allowed';
+              saveBtn.textContent = '🔒 Подписка не активна (Заблокировано)';
+            }
           }
 
           const pcStatus = document.getElementById('pc-api-status-label');
@@ -452,6 +469,11 @@ document.addEventListener('click', (e) => {
 
 // ===== СОХРАНЕНИЕ =====
 async function saveSettings() {
+  if (!isSubActive) {
+    alert('🔒 У вас нет активной подписки!\nСохранение параметров и сбор объявлений заблокированы.\nАктивируйте промокод через /promo в Telegram боте.');
+    return;
+  }
+
   const btn = document.getElementById('save-btn');
   if (!btn) return;
 
