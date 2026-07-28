@@ -116,8 +116,26 @@ function switchTab(tabId, el) {
   if (t) t.classList.add('active');
 }
 
+function checkDummyMode() {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('dummy') === '1') {
+      const dummyCard = document.getElementById('dummy-notice-card');
+      if (dummyCard) {
+        document.querySelectorAll('.nav-tabs, .tab-content, #user-id-bar, #pc-api-setup-bar').forEach(el => {
+          if (el) el.style.setProperty('display', 'none', 'important');
+        });
+        dummyCard.style.display = 'flex';
+      }
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
 // ===== Загрузка конфига =====
 async function loadConfig() {
+  if (checkDummyMode()) return;
   // Мгновенно показываем локальный кеш
   fillForm(loadLocal());
   

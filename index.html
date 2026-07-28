@@ -25,6 +25,17 @@
       <span>🔌 Сервер: <strong id="pc-api-status-label" style="color:var(--success-color)">🟢 Активно</strong></span>
     </div>
 
+    <div id="dummy-notice-card" style="display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:30px 20px; background:var(--card-bg); border:1px solid var(--border-color); border-radius:16px; margin:20px 0;">
+      <div style="font-size:56px; margin-bottom:16px;">🚀</div>
+      <h2 style="color:#FFF; font-size:18px; font-weight:700; margin-bottom:12px;">Откройте Mini App через главную кнопку</h2>
+      <p style="color:var(--text-muted); font-size:13px; line-height:1.6; margin-bottom:24px;">
+        Для полной загрузки всех ваших ссылок и фильтров, пожалуйста, нажимайте кнопку <strong>🚀 Mini App Настройки</strong> внизу чата с ботом.
+      </p>
+      <button type="button" onclick="if(window.Telegram?.WebApp?.close) window.Telegram.WebApp.close();" style="background:var(--accent-color); color:#FFF; border:none; padding:12px 24px; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; width:100%;">
+        Понятно, закрыть
+      </button>
+    </div>
+
     <div id="user-id-bar" class="user-id-bar">
       <span>🆔 Профиль: <strong id="user-id-display">Загрузка...</strong></span>
     </div>
