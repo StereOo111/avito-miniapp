@@ -131,6 +131,17 @@ async function loadConfig() {
   if (badge) badge.textContent = userName ? ('👋 ' + userName) : '📱 Mini App';
   if (badge) badge.className = 'badge badge-active';
 
+  // Мгновенно подгружаем статус подписки прямо из URL параметров бота (0 миллисекунд задержки)
+  const urlParams = new URLSearchParams(window.location.search);
+  const paramSub = urlParams.get('sub');
+  const paramExp = urlParams.get('exp');
+  if (paramSub !== null) {
+    const isAct = (paramSub === '1');
+    if (subIcon) subIcon.textContent = isAct ? '🟢' : '🔴';
+    if (subTitle) subTitle.textContent = isAct ? 'Подписка активна!' : 'Подписка не активна';
+    if (subDesc) subDesc.textContent = isAct ? ('До: ' + (paramExp === 'inf' ? 'Бессрочно' : (paramExp || 'Активна'))) : 'Активируйте промокод: /promo в боте.';
+  }
+
   await detectAPI();
   updateUserIdDisplay();
 
