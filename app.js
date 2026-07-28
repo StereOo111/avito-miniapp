@@ -16,8 +16,6 @@ function resolveUserId() {
     const urlParams = new URLSearchParams(window.location.search);
     const fromUrl = urlParams.get('user_id');
     if (fromUrl) return parseInt(fromUrl);
-    const fromStorage = localStorage.getItem('desktop_admin_selected_user_id');
-    if (fromStorage) return parseInt(fromStorage);
   } catch (e) {}
   return 0;
 }
@@ -107,22 +105,19 @@ function saveCustomApiUrl() {
 // ===== UI: профиль пользователя =====
 async function updateUserIdDisplay() {
   const displayEl = document.getElementById('user-id-display');
-  const dropdownEl = document.getElementById('user-selector-dropdown');
-  const changeBtn = document.getElementById('change-user-btn');
   const pcBar = document.getElementById('pc-api-setup-bar');
   const pcStatus = document.getElementById('pc-api-status-label');
   const pcInput = document.getElementById('pc-api-url-input');
 
-  if (isTgWebApp) {
+  if (userId && userId > 0) {
     if (displayEl) displayEl.textContent = userId + (userName ? ' (' + userName + ')' : '');
-    if (dropdownEl) dropdownEl.style.display = 'none';
-    if (changeBtn) changeBtn.style.display = 'none';
-    // Мы не скрываем pcBar безусловно здесь, чтобы при ошибке loadConfig мог его показать для отладки
   } else {
-    if (displayEl) displayEl.textContent = userId ? userId : 'Не выбран';
-    if (changeBtn) changeBtn.style.display = 'inline-block';
+    if (displayEl) displayEl.textContent = '🔒 Запустите через бота Telegram';
+  }
+
+  if (!isTgWebApp) {
     if (pcBar) pcBar.style.display = 'flex';
-    
+
     if (pcInput && !pcInput.value) {
       pcInput.value = localStorage.getItem('desktop_admin_custom_api_url') || '';
     }
@@ -133,29 +128,6 @@ async function updateUserIdDisplay() {
         pcStatus.textContent = '🟢 Подключен ' + (targetApi === '' ? '(Localhost)' : '(Туннель)');
         pcStatus.style.color = 'var(--success-color)';
       }
-      if (dropdownEl) {
-        try {
-          const url = (targetApi === '') ? '/api/users' : (targetApi + '/api/users');
-          const res = await customFetch(url);
-          const data = await res.json();
-          if (data && data.ok && data.users && data.users.length) {
-            dropdownEl.innerHTML = '<option value="">-- Выберите профиль --</option>';
-            data.users.forEach(u => {
-              const opt = document.createElement('option');
-              opt.value = u.user_id;
-              opt.textContent = (u.first_name || u.username || 'ID ' + u.user_id) + ' (' + u.user_id + ')';
-              if (u.user_id == userId) opt.selected = true;
-              dropdownEl.appendChild(opt);
-            });
-            dropdownEl.style.display = 'inline-block';
-          }
-        } catch(e) {
-          if (pcStatus) {
-            pcStatus.textContent = '🔴 Ошибка подключения';
-            pcStatus.style.color = 'var(--danger-color)';
-          }
-        }
-      }
     } else {
       if (pcStatus) {
         pcStatus.textContent = '🔴 Не подключен';
@@ -165,15 +137,6 @@ async function updateUserIdDisplay() {
   }
 }
 
-function onUserSelectChange(val) {
-  if (!val) return;
-  userId = parseInt(val);
-  localStorage.setItem('desktop_admin_selected_user_id', userId);
-  loadConfig();
-}
-
-function promptChangeUserId() {
-  const input = prompt('Введите Telegram ID:', userId || '');
   if (input !== null) {
     const uid = parseInt(input.trim());
     if (uid && !isNaN(uid)) {
