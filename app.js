@@ -131,17 +131,6 @@ async function loadConfig() {
   if (badge) badge.textContent = userName ? ('👋 ' + userName) : '📱 Mini App';
   if (badge) badge.className = 'badge badge-active';
 
-  // Мгновенно подгружаем статус подписки прямо из URL параметров бота (0 миллисекунд задержки)
-  const urlParams = new URLSearchParams(window.location.search);
-  const paramSub = urlParams.get('sub');
-  const paramExp = urlParams.get('exp');
-  if (paramSub !== null) {
-    const isAct = (paramSub === '1');
-    if (subIcon) subIcon.textContent = isAct ? '🟢' : '🔴';
-    if (subTitle) subTitle.textContent = isAct ? 'Подписка активна!' : 'Подписка не активна';
-    if (subDesc) subDesc.textContent = isAct ? ('До: ' + (paramExp === 'inf' ? 'Бессрочно' : (paramExp || 'Активна'))) : 'Активируйте промокод: /promo в боте.';
-  }
-
   await detectAPI();
   updateUserIdDisplay();
 
@@ -156,10 +145,14 @@ async function loadConfig() {
         fillForm(cfg);
         saveLocal(cfg);
 
-        if (data.is_sub_active) {
+        if (data.is_admin) {
+          if (subIcon) subIcon.textContent = '👑';
+          if (subTitle) subTitle.textContent = 'Администратор';
+          if (subDesc) subDesc.textContent = 'Бессрочный доступ к системе';
+        } else if (data.is_sub_active) {
           if (subIcon) subIcon.textContent = '🟢';
-          if (subTitle) subTitle.textContent = 'Подписка активна!';
-          if (subDesc) subDesc.textContent = 'До: ' + (data.sub_expires_at ? data.sub_expires_at.slice(0,10) : 'Бессрочно');
+          if (subTitle) subTitle.textContent = 'Подписка активна';
+          if (subDesc) subDesc.textContent = 'До: ' + (data.sub_expires_at ? data.sub_expires_at.slice(0,10) : '—');
         } else {
           if (subIcon) subIcon.textContent = '🔴';
           if (subTitle) subTitle.textContent = 'Подписка не активна';
