@@ -21,14 +21,8 @@
       <div id="sub-badge" class="badge badge-active">⏳ Загрузка...</div>
     </header>
 
-    <div id="pc-api-setup-bar" class="user-id-bar" style="display:none; flex-direction:column; gap:8px; align-items:stretch;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span>🔌 Сервер: <strong id="pc-api-status-label" style="color:var(--danger-color)">Не подключен</strong></span>
-      </div>
-      <div style="display:flex; gap:8px;">
-        <input type="text" id="pc-api-url-input" placeholder="https://...trycloudflare.com" style="padding:4px 8px; font-size:12px; height:30px; margin:0;">
-        <button type="button" onclick="saveCustomApiUrl()" style="background:var(--accent-color); color:white; border:none; padding:4px 12px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:600; white-space:nowrap;">🔗 Подключить</button>
-      </div>
+    <div id="pc-api-setup-bar" class="user-id-bar">
+      <span>🔌 Сервер: <strong id="pc-api-status-label" style="color:var(--success-color)">🟢 Активно</strong></span>
     </div>
 
     <div id="user-id-bar" class="user-id-bar">

@@ -78,28 +78,7 @@ async function detectAPI() {
     return;
   }
 
-  // GitHub Pages на ПК — кастомный URL из localStorage
-  const customApi = localStorage.getItem('desktop_admin_custom_api_url');
-  if (customApi) {
-    API_BASE = customApi.trim().replace(/\/$/, '');
-    return;
-  }
-
   API_BASE = null;
-}
-
-function saveCustomApiUrl() {
-  const val = document.getElementById('pc-api-url-input').value.trim();
-  if (val) {
-    localStorage.setItem('desktop_admin_custom_api_url', val);
-    API_BASE = val.trim().replace(/\/$/, '');
-    alert('✅ URL API сохранён! Переподключение...');
-  } else {
-    localStorage.removeItem('desktop_admin_custom_api_url');
-    API_BASE = null;
-    alert('URL сброшен.');
-  }
-  loadConfig();
 }
 
 // ===== UI: профиль пользователя =====
@@ -107,7 +86,6 @@ async function updateUserIdDisplay() {
   const displayEl = document.getElementById('user-id-display');
   const pcBar = document.getElementById('pc-api-setup-bar');
   const pcStatus = document.getElementById('pc-api-status-label');
-  const pcInput = document.getElementById('pc-api-url-input');
 
   if (userId && userId > 0) {
     if (displayEl) displayEl.textContent = userId + (userName ? ' (' + userName + ')' : '');
@@ -115,35 +93,16 @@ async function updateUserIdDisplay() {
     if (displayEl) displayEl.textContent = '🔒 Запустите через бота Telegram';
   }
 
-  if (!isTgWebApp) {
-    if (pcBar) pcBar.style.display = 'flex';
-
-    if (pcInput && !pcInput.value) {
-      pcInput.value = localStorage.getItem('desktop_admin_custom_api_url') || '';
+  const targetApi = getTargetApi();
+  if (targetApi !== null) {
+    if (pcStatus) {
+      pcStatus.textContent = '🟢 Активно';
+      pcStatus.style.color = 'var(--success-color)';
     }
-
-    const targetApi = getTargetApi();
-    if (targetApi !== null) {
-      if (pcStatus) {
-        pcStatus.textContent = '🟢 Подключен ' + (targetApi === '' ? '(Localhost)' : '(Туннель)');
-        pcStatus.style.color = 'var(--success-color)';
-      }
-    } else {
-      if (pcStatus) {
-        pcStatus.textContent = '🔴 Не подключен';
-        pcStatus.style.color = 'var(--danger-color)';
-      }
-    }
-  }
-}
-
-  if (input !== null) {
-    const uid = parseInt(input.trim());
-    if (uid && !isNaN(uid)) {
-      userId = uid;
-      localStorage.setItem('desktop_admin_selected_user_id', uid);
-      updateUserIdDisplay();
-      loadConfig();
+  } else {
+    if (pcStatus) {
+      pcStatus.textContent = '🔴 Ошибка связи';
+      pcStatus.style.color = 'var(--danger-color)';
     }
   }
 }
@@ -204,20 +163,16 @@ async function loadConfig() {
       }
     } catch(e) {
       console.warn('[MiniApp] Загрузка конфига не удалась:', e.message);
-      const pcBar = document.getElementById('pc-api-setup-bar');
-      if (pcBar) pcBar.style.display = 'flex';
       const pcStatus = document.getElementById('pc-api-status-label');
       if (pcStatus) {
-        pcStatus.textContent = '🔴 Ошибка соединения';
+        pcStatus.textContent = '🔴 Ошибка связи';
         pcStatus.style.color = 'var(--danger-color)';
       }
     }
   } else {
-    const pcBar = document.getElementById('pc-api-setup-bar');
-    if (pcBar) pcBar.style.display = 'flex';
     const pcStatus = document.getElementById('pc-api-status-label');
     if (pcStatus) {
-      pcStatus.textContent = '🔴 Не подключен (Нет API URL)';
+      pcStatus.textContent = '🔴 Ошибка связи';
       pcStatus.style.color = 'var(--danger-color)';
     }
   }
