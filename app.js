@@ -59,51 +59,91 @@ function saveLocal(cfg) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
 }
 
-// ===== Детекция API =====
+// ===== Детекция API с реальной проверкой связи =====
+async function tryPing(baseUrl) {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3000);
+    const url = baseUrl ? (baseUrl + '/api/health') : '/api/health';
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      headers: {
+        'bypass-tunnel-reminder': 'true',
+        'ngrok-skip-browser-warning': 'true'
+      }
+    });
+    clearTimeout(timer);
+    if (res.ok) {
+      const data = await res.json();
+      return !!(data && data.ok);
+    }
+  } catch (e) {}
+  return false;
+}
+
 async function detectAPI() {
   const paramApi = getApiUrlFromParams();
-
-  // Если Mini App открыт по адресу localhost или напрямую по адресу туннеля (trycloudflare, lhr.life, serveo, serveousercontent и т.д.)
   const h = location.hostname;
+
+  // 1. Если Mini App открыт напрямую на домене туннеля или localhost
   if (h === 'localhost' || h === '127.0.0.1' || h.endsWith('trycloudflare.com') || h.endsWith('lhr.life') || h.endsWith('lhrtunnel.link') || h.endsWith('serveo.net') || h.endsWith('serveousercontent.com') || h.endsWith('pinggy.link') || h.endsWith('ngrok-free.app')) {
-    API_BASE = '';
-    console.log('[MiniApp] Работаем напрямую (Same-Origin / Localhost)');
+    if (await tryPing('')) {
+      API_BASE = '';
+      console.log('[MiniApp] ✅ Сервер доступен напрямую (Same-Origin)');
+      return;
+    }
+  }
+
+  // 2. Если передан api_url параметр — проверяем реальный доступ
+  if (paramApi) {
+    if (await tryPing(paramApi)) {
+      API_BASE = paramApi;
+      console.log('[MiniApp] ✅ Сервер доступен через api_url:', paramApi);
+      return;
+    }
+    // api_url передан но не отвечает — пробуем same-origin (на случай если Mini App на том же хосте)
+    if (await tryPing('')) {
+      API_BASE = '';
+      console.log('[MiniApp] ✅ Сервер доступен напрямую (fallback same-origin)');
+      return;
+    }
+    // Сервер не пингуется, но api_url есть — ставим его, fetch к /api/config может вернуть 200
+    API_BASE = paramApi;
+    console.log('[MiniApp] ⚠️ api_url задан, но health-check не прошёл. Пробуем использовать:', paramApi);
     return;
   }
 
-  // Если передан api_url в параметрах (при запуске с GitHub Pages)
-  if (paramApi) {
-    API_BASE = paramApi;
-    console.log('[MiniApp] Обнаружен API URL из параметров:', paramApi);
+  // 3. Ничего не передано — пробуем same-origin
+  if (await tryPing('')) {
+    API_BASE = '';
+    console.log('[MiniApp] ✅ Сервер доступен (Same-Origin, без api_url)');
     return;
   }
 
   API_BASE = null;
+  console.warn('[MiniApp] ❌ Сервер недоступен');
 }
 
 // ===== UI: профиль пользователя =====
-async function updateUserIdDisplay() {
+function updateUserIdDisplay() {
   const displayEl = document.getElementById('user-id-display');
-  const pcBar = document.getElementById('pc-api-setup-bar');
-  const pcStatus = document.getElementById('pc-api-status-label');
 
   if (userId && userId > 0) {
     if (displayEl) displayEl.textContent = userId + (userName ? ' (' + userName + ')' : '');
   } else {
     if (displayEl) displayEl.textContent = '🔒 Запустите через бота Telegram';
   }
+}
 
-  const targetApi = getTargetApi();
-  if (targetApi !== null) {
-    if (pcStatus) {
-      pcStatus.textContent = '🟢 Активно';
-      pcStatus.style.color = 'var(--success-color)';
-    }
+function setServerStatus(isOnline, detail) {
+  const pcStatus = document.getElementById('pc-api-status-label');
+  if (!pcStatus) return;
+  if (isOnline) {
+    pcStatus.textContent = '🟢 Активно';
+    pcStatus.style.color = 'var(--success-color)';
   } else {
-    if (pcStatus) {
-      pcStatus.textContent = '🔴 Ошибка связи';
-      pcStatus.style.color = 'var(--danger-color)';
-    }
+    pcStatus.textContent = detail || '🔴 Сервер не отвечает';
+    pcStatus.style.color = 'var(--danger-color)';
   }
 }
 
@@ -138,12 +178,18 @@ async function loadConfig() {
   if (targetApi !== null && userId) {
     try {
       const url = (targetApi === '') ? ('/api/config?user_id=' + userId) : (targetApi + '/api/config?user_id=' + userId);
-      const res = await customFetch(url);
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 5000);
+      const res = await customFetch(url, { signal: ctrl.signal });
+      clearTimeout(timer);
       if (res.ok) {
         const data = await res.json();
         const cfg = data.config || {};
         fillForm(cfg);
         saveLocal(cfg);
+
+        // Статус сервера — ТОЛЬКО на основании реального ответа
+        setServerStatus(true);
 
         if (data.is_admin) {
           if (subIcon) subIcon.textContent = '👑';
@@ -169,18 +215,16 @@ async function loadConfig() {
       }
     } catch(e) {
       console.warn('[MiniApp] Загрузка конфига не удалась:', e.message);
-      const pcStatus = document.getElementById('pc-api-status-label');
-      if (pcStatus) {
-        pcStatus.textContent = '🔴 Ошибка связи';
-        pcStatus.style.color = 'var(--danger-color)';
-      }
+      setServerStatus(false, '🔴 Сервер не отвечает');
+      if (subIcon) subIcon.textContent = '⏳';
+      if (subTitle) subTitle.textContent = 'Ожидание сервера';
+      if (subDesc) subDesc.textContent = 'Убедитесь, что парсер запущен на ПК.';
     }
   } else {
-    const pcStatus = document.getElementById('pc-api-status-label');
-    if (pcStatus) {
-      pcStatus.textContent = '🔴 Ошибка связи';
-      pcStatus.style.color = 'var(--danger-color)';
-    }
+    setServerStatus(false, '🔴 Нет подключения');
+    if (subIcon) subIcon.textContent = '⏳';
+    if (subTitle) subTitle.textContent = 'Ожидание подключения';
+    if (subDesc) subDesc.textContent = 'Запустите парсер на ПК и откройте Mini App заново.';
   }
 }
 
