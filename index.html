@@ -29,14 +29,8 @@
       <span>🆔 Профиль: <strong id="user-id-display">Загрузка...</strong></span>
     </div>
 
-    <nav class="nav-tabs">
-      <button class="tab-btn active" onclick="switchTab('links', this)">🎯 Ссылки</button>
-      <button class="tab-btn" onclick="switchTab('filters', this)">🔍 Фильтры</button>
-      <button class="tab-btn" onclick="switchTab('sub', this)">💳 Подписка</button>
-    </nav>
-
-    <!-- Ссылки -->
-    <section id="tab-links" class="tab-content active">
+    <!-- Основная секция ссылок -->
+    <section id="tab-links" class="tab-content active" style="margin-top:12px;">
       <div class="card">
         <h2>🎯 Управление ссылками Avito</h2>
         <div class="add-url-group">
@@ -48,116 +42,48 @@
         </div>
         <textarea id="urls-input" style="display:none;"></textarea>
       </div>
-      <div class="card">
-        <h2>💰 Цена</h2>
-        <div class="grid-2">
-          <div><label>Мин ₽:</label><input type="number" id="min-price" placeholder="0"></div>
-          <div><label>Макс ₽:</label><input type="number" id="max-price" placeholder="100000"></div>
-        </div>
-      </div>
-      <div class="card">
-        <h2>📄 Глубина</h2>
-        <label>Страниц на ссылку:</label>
-        <input type="number" id="count-page" value="1" min="1" max="10">
-      </div>
-    </section>
-
-    <!-- Фильтры -->
-    <section id="tab-filters" class="tab-content">
-      <div class="card">
-        <h2>📍 Фильтр по городам / населенным пунктам</h2>
-        <div class="city-autocomplete-wrapper" style="position:relative;">
-          <input type="text" id="city-search-input" placeholder="Введите город (например, Крас...)" autocomplete="off" oninput="onCitySearchInput(this.value)">
-          <div id="city-suggestions-dropdown" class="city-dropdown" style="display:none;"></div>
-        </div>
-        <div id="selected-cities-tags" class="selected-cities-tags"></div>
-      </div>
-      <div class="card">
-        <h2>⏰ Возраст объявления</h2>
-        <div class="grid-2">
-          <div><label>Макс. возраст:</label><input type="number" id="max-age" placeholder="0"></div>
-          <div><label>Единицы:</label>
-            <select id="max-age-unit">
-              <option value="minutes">Минуты</option>
-              <option value="hours">Часы</option>
-              <option value="days">Дни</option>
-            </select>
-          </div>
-        </div>
-      </div>
-      <div class="card">
-        <h2>📦 Резерв</h2>
-        <select id="reserv-mode">
-          <option value="all">🌐 Все объявления</option>
-          <option value="ignore">🚫 Скрыть зарезервированные</option>
-          <option value="only">📌 Только зарезервированные</option>
-        </select>
-      </div>
-      <div class="card">
-        <h2>🎯 Опции</h2>
-        <div class="switch-row">
-          <span>📉 Только со скидкой</span>
-          <label class="switch"><input type="checkbox" id="only-discount"><span class="slider"></span></label>
-        </div>
-        <div class="switch-row">
-          <span>📸 Только с фото</span>
-          <label class="switch"><input type="checkbox" id="only-photo"><span class="slider"></span></label>
-        </div>
-      </div>
-      <div class="card">
-        <h2>🔍 Ключевые слова</h2>
-        <label>Белый список:</label>
-        <textarea id="white-list" placeholder="iphone, macbook..."></textarea>
-        <label style="margin-top:8px">Чёрный список:</label>
-        <textarea id="black-list" placeholder="чехол, стекло..."></textarea>
-      </div>
-    </section>
-
-
-
-    <!-- Подписка -->
-    <section id="tab-sub" class="tab-content">
-      <div class="card text-center">
-        <div class="sub-status-box">
-          <div id="sub-icon" class="status-big">⏳</div>
-          <h3 id="sub-title">Подключение к серверу...</h3>
-          <p id="sub-desc">Определяем статус подписки</p>
-        </div>
-      </div>
-      <div class="card">
-        <h2>🎁 Промокод</h2>
-        <div class="flex-row">
-          <input type="text" id="promo-input" placeholder="Введите код">
-          <button class="btn btn-primary" onclick="redeemPromo()">Активировать</button>
-        </div>
-        <div id="promo-result" class="result-msg"></div>
-      </div>
     </section>
 
     <div class="action-bar">
       <button id="save-btn" class="btn btn-success flex-1" onclick="saveSettings()">💾 Сохранить настройки</button>
+    </div>
+
     <!-- Модальное окно персональных фильтров для отдельной ссылки -->
     <div id="link-filter-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(15,23,42,0.9); backdrop-filter:blur(8px); z-index:9999; align-items:center; justify-content:center; padding:16px;">
-      <div style="background:#1E293B; border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:20px; max-width:400px; width:100%; max-height:85vh; overflow-y:auto; box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);">
+      <div style="background:#1E293B; border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:20px; max-width:420px; width:100%; max-height:88vh; overflow-y:auto; box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-          <h3 style="font-size:16px; font-weight:700; color:#F8FAFC;">⚙️ Персональный фильтр ссылки</h3>
-          <button type="button" onclick="closeLinkFilterModal()" style="background:transparent; border:none; color:#94A3B8; font-size:20px; cursor:pointer;">×</button>
+          <h3 style="font-size:16px; font-weight:700; color:#F8FAFC;">⚙️ Параметры ссылки</h3>
+          <button type="button" onclick="closeLinkFilterModal()" style="background:transparent; border:none; color:#94A3B8; font-size:22px; cursor:pointer;">×</button>
         </div>
         <p id="link-filter-modal-url" style="font-size:11px; color:#60A5FA; word-break:break-all; margin-bottom:14px; background:#0F172A; padding:8px; border-radius:6px; max-height:50px; overflow-y:auto;"></p>
         
         <div style="display:flex; flex-direction:column; gap:12px;">
           <div>
-            <label style="font-size:12px; color:#94A3B8;">💰 Диапазон цен (₽):</label>
+            <label style="font-size:12px; color:#94A3B8; font-weight:600;">💰 Диапазон цен (₽):</label>
             <div style="display:flex; gap:8px; margin-top:4px;">
-              <input type="number" id="modal-link-min-price" placeholder="Мин" style="padding:6px 10px; font-size:13px; flex:1;">
-              <input type="number" id="modal-link-max-price" placeholder="Макс" style="padding:6px 10px; font-size:13px; flex:1;">
+              <input type="number" id="modal-link-min-price" placeholder="Мин ₽" style="padding:6px 10px; font-size:13px; flex:1;">
+              <input type="number" id="modal-link-max-price" placeholder="Макс ₽" style="padding:6px 10px; font-size:13px; flex:1;">
             </div>
           </div>
 
           <div>
-            <label style="font-size:12px; color:#94A3B8;">⏱️ Макс. возраст объявления:</label>
+            <label style="font-size:12px; color:#94A3B8; font-weight:600;">📄 Глубина сбора (страниц):</label>
+            <input type="number" id="modal-link-count" value="1" min="1" max="10" style="padding:6px 10px; font-size:13px; margin-top:4px;">
+          </div>
+
+          <div>
+            <label style="font-size:12px; color:#94A3B8; font-weight:600;">📍 Города / населенные пункты:</label>
+            <div class="city-autocomplete-wrapper" style="position:relative; margin-top:4px;">
+              <input type="text" id="modal-link-city-search-input" placeholder="Введите город (напр., Москва)..." autocomplete="off" oninput="onModalCitySearchInput(this.value)" style="padding:6px 10px; font-size:13px;">
+              <div id="modal-link-city-suggestions-dropdown" class="city-dropdown" style="display:none; position:absolute; z-index:100; width:100%;"></div>
+            </div>
+            <div id="modal-link-selected-cities-tags" class="selected-cities-tags" style="margin-top:6px;"></div>
+          </div>
+
+          <div>
+            <label style="font-size:12px; color:#94A3B8; font-weight:600;">⏱️ Макс. возраст объявления:</label>
             <div style="display:flex; gap:8px; margin-top:4px;">
-              <input type="number" id="modal-link-max-age" placeholder="0" style="padding:6px 10px; font-size:13px; flex:1;">
+              <input type="number" id="modal-link-max-age" placeholder="0 (без огр.)" style="padding:6px 10px; font-size:13px; flex:1;">
               <select id="modal-link-max-age-unit" style="padding:6px 10px; font-size:13px; flex:1;">
                 <option value="minutes">Минуты</option>
                 <option value="hours">Часы</option>
@@ -167,17 +93,17 @@
           </div>
 
           <div>
-            <label style="font-size:12px; color:#94A3B8;">⚪ Белые слова (через запятую):</label>
+            <label style="font-size:12px; color:#94A3B8; font-weight:600;">⚪ Белый список слов (через запятую):</label>
             <input type="text" id="modal-link-white-words" placeholder="i5, ryzen, pro..." style="padding:6px 10px; font-size:13px; margin-top:4px;">
           </div>
 
           <div>
-            <label style="font-size:12px; color:#94A3B8;">⚫ Минус-слова (через запятую):</label>
+            <label style="font-size:12px; color:#94A3B8; font-weight:600;">⚫ Черный список минус-слов (через запятую):</label>
             <input type="text" id="modal-link-black-words" placeholder="запчасти, сломан, ремонт..." style="padding:6px 10px; font-size:13px; margin-top:4px;">
           </div>
 
           <div>
-            <label style="font-size:12px; color:#94A3B8;">📦 Статус доставки / резерва:</label>
+            <label style="font-size:12px; color:#94A3B8; font-weight:600;">📦 Статус доставки / резерва:</label>
             <select id="modal-link-reserv-mode" style="padding:6px 10px; font-size:13px; margin-top:4px;">
               <option value="all">🌐 Все объявления</option>
               <option value="ignore">📦 Скрыть резервированные</option>
@@ -215,6 +141,6 @@
       </div>
     </div>
   </div>
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>

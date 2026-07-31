@@ -364,15 +364,23 @@ function renderUrlsList() {
     if (isObj) {
       const parts = [];
       if (item.min_price || (item.max_price && item.max_price < 90000000)) {
-        parts.push(`💰 ${item.min_price || 0} — ${item.max_price < 90000000 ? item.max_price.toLocaleString() : '∞'} ₽`);
+        parts.push(`💰 ${item.min_price || 0}–${item.max_price < 90000000 ? item.max_price.toLocaleString() : '∞'} ₽`);
       }
-      if (item.keys_word_black_list && item.keys_word_black_list.length) {
-        parts.push(`⚫ ${item.keys_word_black_list.length} минус-слов`);
+      if (item.location_filter && item.location_filter.length) {
+        parts.push(`📍 ${item.location_filter.length} гор.`);
+      }
+      if (item.count && item.count > 1) {
+        parts.push(`📄 ${item.count} стр.`);
       }
       if (item.keys_word_white_list && item.keys_word_white_list.length) {
         parts.push(`⚪ ${item.keys_word_white_list.length} белых слов`);
       }
-      customTag = `<div style="font-size:11px; color:#10B981; margin-top:4px; font-weight:500;">⚙️ Персональный фильтр: ${parts.join(' | ') || 'Настроен'}</div>`;
+      if (item.keys_word_black_list && item.keys_word_black_list.length) {
+        parts.push(`⚫ ${item.keys_word_black_list.length} минус-слов`);
+      }
+      customTag = `<div style="font-size:11px; color:#10B981; margin-top:4px; font-weight:500;">⚙️ Фильтры: ${parts.join(' | ') || 'Настроены'}</div>`;
+    } else {
+      customTag = `<div style="font-size:11px; color:#94A3B8; margin-top:4px;">⚙️ Нажмите ⚙️ справа чтобы настроить цену, города и фильтры этой ссылки</div>`;
     }
 
     const row = document.createElement('div');
@@ -396,6 +404,80 @@ function renderUrlsList() {
   }
 }
 
+let modalSelectedCities = [];
+
+function onModalCitySearchInput(query) {
+  const dropdown = document.getElementById('modal-link-city-suggestions-dropdown');
+  if (!dropdown) return;
+
+  const q = query.trim().toLowerCase();
+  if (!q || q.length < 1) {
+    dropdown.style.display = 'none';
+    dropdown.innerHTML = '';
+    return;
+  }
+
+  const matches = allCities.filter(c => c.name.toLowerCase().includes(q)).slice(0, 15);
+  if (!matches.length) {
+    dropdown.innerHTML = '<div class="city-item" style="color:#94A3B8; cursor:default;">Ничего не найдено</div>';
+    dropdown.style.display = 'block';
+    return;
+  }
+
+  let html = '';
+  matches.forEach(c => {
+    html += `
+      <div class="city-item" onclick="selectModalCity('${c.name.replace(/'/g, "\\'")}')">
+        <span>📍 ${c.name}</span>
+        <span class="city-item-subject">${c.subject || ''}</span>
+      </div>
+    `;
+  });
+
+  dropdown.innerHTML = html;
+  dropdown.style.display = 'block';
+}
+
+function selectModalCity(cityName) {
+  if (!modalSelectedCities.includes(cityName)) {
+    modalSelectedCities.push(cityName);
+  }
+  const input = document.getElementById('modal-link-city-search-input');
+  if (input) input.value = '';
+  const dropdown = document.getElementById('modal-link-city-suggestions-dropdown');
+  if (dropdown) {
+    dropdown.style.display = 'none';
+    dropdown.innerHTML = '';
+  }
+  renderModalSelectedCities();
+}
+
+function removeModalCityTag(index) {
+  modalSelectedCities.splice(index, 1);
+  renderModalSelectedCities();
+}
+
+function renderModalSelectedCities() {
+  const container = document.getElementById('modal-link-selected-cities-tags');
+  if (!container) return;
+
+  if (!modalSelectedCities.length) {
+    container.innerHTML = '<span style="font-size:11px; color:#64748B;">Города не выбраны (поиск по всем)</span>';
+    return;
+  }
+
+  let html = '';
+  modalSelectedCities.forEach((city, index) => {
+    html += `
+      <span class="city-tag" style="font-size:11px; padding:3px 8px; border-radius:6px; background:#334155; color:#F8FAFC; display:inline-flex; align-items:center; gap:4px; margin:2px;">
+        📍 ${city}
+        <button type="button" onclick="removeModalCityTag(${index})" style="background:transparent; border:none; color:#EF4444; font-weight:bold; cursor:pointer;">×</button>
+      </span>
+    `;
+  });
+  container.innerHTML = html;
+}
+
 function openLinkFilterModal(index) {
   editingLinkIndex = index;
   const item = currentUrls[index];
@@ -409,18 +491,21 @@ function openLinkFilterModal(index) {
 
   const isObj = typeof item === 'object' && item !== null;
 
-  const minP = isObj && item.min_price !== undefined ? item.min_price : document.getElementById('min-price')?.value || '';
-  const maxP = isObj && item.max_price !== undefined ? item.max_price : document.getElementById('max-price')?.value || '';
-  const maxAge = isObj && item.max_age !== undefined ? item.max_age : document.getElementById('max-age')?.value || '';
-  const maxAgeUnit = isObj && item.max_age_unit ? item.max_age_unit : document.getElementById('max-age-unit')?.value || 'minutes';
-  const whiteWords = isObj && item.keys_word_white_list ? item.keys_word_white_list.join(', ') : (document.getElementById('white-list')?.value || '').split('\n').filter(Boolean).join(', ');
-  const blackWords = isObj && item.keys_word_black_list ? item.keys_word_black_list.join(', ') : (document.getElementById('black-list')?.value || '').split('\n').filter(Boolean).join(', ');
-  const reservMode = isObj && item.reserv_mode ? item.reserv_mode : document.getElementById('reserv-mode')?.value || 'all';
-  const onlyDiscount = isObj && item.only_with_discount !== undefined ? !!item.only_with_discount : document.getElementById('only-discount')?.checked || false;
-  const onlyPhoto = isObj && item.only_with_photo !== undefined ? !!item.only_with_photo : document.getElementById('only-photo')?.checked || false;
+  const minP = isObj && item.min_price !== undefined ? item.min_price : '';
+  const maxP = isObj && item.max_price !== undefined ? item.max_price : '';
+  const cnt = isObj && item.count !== undefined ? item.count : 1;
+  modalSelectedCities = isObj && Array.isArray(item.location_filter) ? [...item.location_filter] : [];
+  const maxAge = isObj && item.max_age !== undefined ? item.max_age : '';
+  const maxAgeUnit = isObj && item.max_age_unit ? item.max_age_unit : 'minutes';
+  const whiteWords = isObj && item.keys_word_white_list ? item.keys_word_white_list.join(', ') : '';
+  const blackWords = isObj && item.keys_word_black_list ? item.keys_word_black_list.join(', ') : '';
+  const reservMode = isObj && item.reserv_mode ? item.reserv_mode : 'all';
+  const onlyDiscount = isObj && item.only_with_discount !== undefined ? !!item.only_with_discount : false;
+  const onlyPhoto = isObj && item.only_with_photo !== undefined ? !!item.only_with_photo : false;
 
   if (document.getElementById('modal-link-min-price')) document.getElementById('modal-link-min-price').value = minP;
   if (document.getElementById('modal-link-max-price')) document.getElementById('modal-link-max-price').value = maxP;
+  if (document.getElementById('modal-link-count')) document.getElementById('modal-link-count').value = cnt;
   if (document.getElementById('modal-link-max-age')) document.getElementById('modal-link-max-age').value = maxAge;
   if (document.getElementById('modal-link-max-age-unit')) document.getElementById('modal-link-max-age-unit').value = maxAgeUnit;
   if (document.getElementById('modal-link-white-words')) document.getElementById('modal-link-white-words').value = whiteWords;
@@ -428,6 +513,8 @@ function openLinkFilterModal(index) {
   if (document.getElementById('modal-link-reserv-mode')) document.getElementById('modal-link-reserv-mode').value = reservMode;
   if (document.getElementById('modal-link-only-discount')) document.getElementById('modal-link-only-discount').checked = onlyDiscount;
   if (document.getElementById('modal-link-only-photo')) document.getElementById('modal-link-only-photo').checked = onlyPhoto;
+
+  renderModalSelectedCities();
 
   if (modal) modal.style.display = 'flex';
 }
@@ -445,6 +532,7 @@ function saveLinkFilterModal() {
 
   const minP = parseInt(document.getElementById('modal-link-min-price')?.value) || 0;
   const maxP = parseInt(document.getElementById('modal-link-max-price')?.value) || 99999999;
+  const cnt = parseInt(document.getElementById('modal-link-count')?.value) || 1;
   const maxAge = parseInt(document.getElementById('modal-link-max-age')?.value) || 0;
   const maxAgeUnit = document.getElementById('modal-link-max-age-unit')?.value || 'minutes';
   const whiteWords = (document.getElementById('modal-link-white-words')?.value || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -457,6 +545,8 @@ function saveLinkFilterModal() {
     url: urlStr,
     min_price: minP,
     max_price: maxP,
+    count: cnt,
+    location_filter: [...modalSelectedCities],
     max_age: maxAge,
     max_age_unit: maxAgeUnit,
     keys_word_white_list: whiteWords,
@@ -509,62 +599,15 @@ function fillForm(cfg) {
   if (!cfg) return;
   currentUrls = cfg.urls || [];
   renderUrlsList();
-
-  selectedCities = cfg.location_filter || [];
-  renderSelectedCities();
-
-  const el = (id) => document.getElementById(id);
-  if (el('min-price')) el('min-price').value = cfg.min_price || 0;
-  if (el('max-price')) el('max-price').value = cfg.max_price || 99999999;
-  if (el('count-page')) el('count-page').value = cfg.count || 1;
-  if (el('max-age')) el('max-age').value = cfg.max_age || 0;
-  if (el('max-age-unit')) el('max-age-unit').value = cfg.max_age_unit || 'minutes';
-  if (el('reserv-mode')) el('reserv-mode').value = cfg.reserv_mode || 'all';
-  if (el('only-discount')) el('only-discount').checked = !!cfg.only_with_discount;
-  if (el('only-photo')) el('only-photo').checked = !!cfg.only_with_photo;
-  if (el('white-list')) el('white-list').value = (cfg.keys_word_white_list || []).join('\n');
-  if (el('black-list')) el('black-list').value = (cfg.keys_word_black_list || []).join('\n');
 }
 
 function collectForm() {
-  const el = (id) => document.getElementById(id);
-  const parseVal = (id, fallback) => {
-    const elem = el(id);
-    if (!elem) return fallback;
-    const val = parseInt(elem.value);
-    return isNaN(val) ? fallback : val;
-  };
-  const strVal = (id, fallback) => {
-    const elem = el(id);
-    return elem ? elem.value : fallback;
-  };
-  const boolVal = (id) => {
-    const elem = el(id);
-    return elem ? !!elem.checked : false;
-  };
-  const listVal = (id) => {
-    const elem = el(id);
-    if (!elem || !elem.value) return [];
-    return elem.value.split('\n').map(s => s.trim()).filter(Boolean);
-  };
-
   return {
     user_id: userId,
     first_name: userName,
     username: userUsername,
     updated_at: Date.now(),
-    urls: Array.isArray(currentUrls) ? currentUrls : [],
-    min_price: parseVal('min-price', 0),
-    max_price: parseVal('max-price', 99999999),
-    count: parseVal('count-page', 1),
-    max_age: parseVal('max-age', 0),
-    max_age_unit: strVal('max-age-unit', 'minutes'),
-    reserv_mode: strVal('reserv-mode', 'all'),
-    only_with_discount: boolVal('only-discount'),
-    only_with_photo: boolVal('only-photo'),
-    keys_word_white_list: listVal('white-list'),
-    keys_word_black_list: listVal('black-list'),
-    location_filter: Array.isArray(selectedCities) ? selectedCities : [],
+    urls: Array.isArray(currentUrls) ? currentUrls : []
   };
 }
 
