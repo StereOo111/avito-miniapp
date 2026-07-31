@@ -75,6 +75,46 @@ function saveLocal(cfg) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
 }
 
+// ===== Кросс-девайсная синхронизация (Telegram CloudStorage + LocalStorage) =====
+function syncSaveCloud(cfg) {
+  if (!cfg) return;
+  saveLocal(cfg);
+  try {
+    if (tg?.CloudStorage?.setItem) {
+      tg.CloudStorage.setItem(STORAGE_KEY, JSON.stringify(cfg), (err) => {
+        if (err) console.warn('[CloudStorage] Ошибка сохранения в облако Telegram:', err);
+        else console.log('[CloudStorage] ✅ Успешно синхронизировано в облако Telegram!');
+      });
+    }
+  } catch(e) {
+    console.warn('[CloudStorage] Ошибка вызова CloudStorage:', e);
+  }
+}
+
+async function syncLoadCloud() {
+  return new Promise((resolve) => {
+    try {
+      if (tg?.CloudStorage?.getItem) {
+        tg.CloudStorage.getItem(STORAGE_KEY, (err, value) => {
+          if (!err && value) {
+            try {
+              const cloudCfg = JSON.parse(value);
+              console.log('[CloudStorage] ☁️ Получены настройки из облака Telegram!');
+              resolve(cloudCfg);
+              return;
+            } catch(e) {}
+          }
+          resolve(null);
+        });
+      } else {
+        resolve(null);
+      }
+    } catch(e) {
+      resolve(null);
+    }
+  });
+}
+
 // ===== Детекция API =====
 async function detectAPI() {
   const paramApi = getApiUrlFromParams();
@@ -128,8 +168,9 @@ function switchTab(tabId, el) {
 
 // ===== Загрузка конфига =====
 async function loadConfig() {
-  // Мгновенно показываем локальный кеш
-  fillForm(loadLocal());
+  // 1. Мгновенно показываем локальный кэш
+  let currentCfg = loadLocal();
+  fillForm(currentCfg);
   
   const badge = document.getElementById('sub-badge');
   const subTitle = document.getElementById('sub-title');
@@ -140,9 +181,22 @@ async function loadConfig() {
   if (badge) badge.textContent = userName ? ('👋 ' + userName) : '📱 Mini App';
   if (badge) badge.className = 'badge badge-active';
 
+  // 2. В фоновом режиме подгружаем данные из облака Telegram CloudStorage (для новых устройств)
+  const cloudCfg = await syncLoadCloud();
+  if (cloudCfg) {
+    const localTs = currentCfg.updated_at || 0;
+    const cloudTs = cloudCfg.updated_at || 0;
+    if (cloudTs >= localTs && cloudCfg.urls) {
+      currentCfg = cloudCfg;
+      fillForm(currentCfg);
+      saveLocal(currentCfg);
+    }
+  }
+
   await detectAPI();
   updateUserIdDisplay();
 
+  // 3. Запрашиваем сервер ПК для получения самой свежей БД пользователя
   const targetApi = getTargetApi();
   if (userId && userId > 0) {
     try {
@@ -164,9 +218,15 @@ async function loadConfig() {
         }
 
         if (data && data.ok) {
-          const cfg = data.config || {};
-          fillForm(cfg);
-          saveLocal(cfg);
+          const serverCfg = data.config || {};
+          const serverTs = serverCfg.updated_at || 0;
+          const localTs = currentCfg.updated_at || 0;
+
+          if (serverTs >= localTs || !currentCfg.urls || currentCfg.urls.length === 0) {
+            currentCfg = serverCfg;
+            fillForm(currentCfg);
+            syncSaveCloud(currentCfg);
+          }
 
           isSubActive = !!data.is_sub_active;
 
@@ -464,6 +524,7 @@ function collectForm() {
 
   return {
     user_id: userId,
+    updated_at: Date.now(),
     urls: Array.isArray(currentUrls) ? currentUrls : [],
     min_price: parseVal('min-price', 0),
     max_price: parseVal('max-price', 99999999),
@@ -595,8 +656,8 @@ async function saveSettings() {
     const payload = collectForm();
     console.log('[MiniApp] Сохраняем настройки:', JSON.stringify({user_id: payload.user_id, urls_count: payload.urls.length}));
 
-    // 1. Сохраняем в локальный кэш
-    saveLocal(payload);
+    // 1. Сохраняем в локальный кэш + облако Telegram CloudStorage
+    syncSaveCloud(payload);
 
     const tg = window.Telegram?.WebApp;
     const tgPayload = Object.assign({ action: 'save_config' }, payload);
