@@ -242,7 +242,9 @@ function closeApp() {
   }
 }
 
-// ===== Управление ссылками =====
+// ===== Управление ссылками и персональными фильтрами =====
+let editingLinkIndex = null;
+
 function renderUrlsList() {
   const container = document.getElementById('urls-list-container');
   const hiddenInput = document.getElementById('urls-input');
@@ -255,7 +257,10 @@ function renderUrlsList() {
   }
 
   container.innerHTML = '';
-  currentUrls.forEach((url, index) => {
+  currentUrls.forEach((item, index) => {
+    const isObj = typeof item === 'object' && item !== null;
+    const url = isObj ? item.url : item;
+
     let title = "Авито Поиск";
     try {
       const u = new URL(url);
@@ -270,19 +275,123 @@ function renderUrlsList() {
       }
     } catch(e) {}
 
-    const item = document.createElement('div');
-    item.className = 'url-item';
-    item.innerHTML = `
-      <div class="url-text-wrapper">
+    let customTag = '';
+    if (isObj) {
+      const parts = [];
+      if (item.min_price || (item.max_price && item.max_price < 90000000)) {
+        parts.push(`💰 ${item.min_price || 0} — ${item.max_price < 90000000 ? item.max_price.toLocaleString() : '∞'} ₽`);
+      }
+      if (item.keys_word_black_list && item.keys_word_black_list.length) {
+        parts.push(`⚫ ${item.keys_word_black_list.length} минус-слов`);
+      }
+      if (item.keys_word_white_list && item.keys_word_white_list.length) {
+        parts.push(`⚪ ${item.keys_word_white_list.length} белых слов`);
+      }
+      customTag = `<div style="font-size:11px; color:#10B981; margin-top:4px; font-weight:500;">⚙️ Персональный фильтр: ${parts.join(' | ') || 'Настроен'}</div>`;
+    }
+
+    const row = document.createElement('div');
+    row.className = 'url-item';
+    row.innerHTML = `
+      <div class="url-text-wrapper" style="flex:1;">
         <span class="url-text-title">${title}</span>
         <a href="${url}" target="_blank" class="url-text-link">${url}</a>
+        ${customTag}
       </div>
-      <button type="button" class="delete-url-btn" onclick="deleteLinkUrl(${index})" title="Удалить">🗑️</button>
+      <div style="display:flex; gap:4px; align-items:center;">
+        <button type="button" onclick="openLinkFilterModal(${index})" title="Настроить фильтры этой ссылки" style="background:#334155; color:#FFF; border:none; padding:4px 8px; border-radius:6px; font-size:12px; cursor:pointer;">⚙️</button>
+        <button type="button" class="delete-url-btn" onclick="deleteLinkUrl(${index})" title="Удалить">🗑️</button>
+      </div>
     `;
-    container.appendChild(item);
+    container.appendChild(row);
   });
 
-  if (hiddenInput) hiddenInput.value = currentUrls.join('\n');
+  if (hiddenInput) {
+    hiddenInput.value = currentUrls.map(u => typeof u === 'object' ? u.url : u).join('\n');
+  }
+}
+
+function openLinkFilterModal(index) {
+  editingLinkIndex = index;
+  const item = currentUrls[index];
+  if (!item) return;
+
+  const modal = document.getElementById('link-filter-modal');
+  const urlEl = document.getElementById('link-filter-modal-url');
+  
+  const urlStr = typeof item === 'object' ? item.url : item;
+  if (urlEl) urlEl.textContent = urlStr;
+
+  const isObj = typeof item === 'object' && item !== null;
+
+  const minP = isObj && item.min_price !== undefined ? item.min_price : document.getElementById('min-price')?.value || '';
+  const maxP = isObj && item.max_price !== undefined ? item.max_price : document.getElementById('max-price')?.value || '';
+  const maxAge = isObj && item.max_age !== undefined ? item.max_age : document.getElementById('max-age')?.value || '';
+  const maxAgeUnit = isObj && item.max_age_unit ? item.max_age_unit : document.getElementById('max-age-unit')?.value || 'minutes';
+  const whiteWords = isObj && item.keys_word_white_list ? item.keys_word_white_list.join(', ') : (document.getElementById('white-list')?.value || '').split('\n').filter(Boolean).join(', ');
+  const blackWords = isObj && item.keys_word_black_list ? item.keys_word_black_list.join(', ') : (document.getElementById('black-list')?.value || '').split('\n').filter(Boolean).join(', ');
+  const reservMode = isObj && item.reserv_mode ? item.reserv_mode : document.getElementById('reserv-mode')?.value || 'all';
+  const onlyDiscount = isObj && item.only_with_discount !== undefined ? !!item.only_with_discount : document.getElementById('only-discount')?.checked || false;
+  const onlyPhoto = isObj && item.only_with_photo !== undefined ? !!item.only_with_photo : document.getElementById('only-photo')?.checked || false;
+
+  if (document.getElementById('modal-link-min-price')) document.getElementById('modal-link-min-price').value = minP;
+  if (document.getElementById('modal-link-max-price')) document.getElementById('modal-link-max-price').value = maxP;
+  if (document.getElementById('modal-link-max-age')) document.getElementById('modal-link-max-age').value = maxAge;
+  if (document.getElementById('modal-link-max-age-unit')) document.getElementById('modal-link-max-age-unit').value = maxAgeUnit;
+  if (document.getElementById('modal-link-white-words')) document.getElementById('modal-link-white-words').value = whiteWords;
+  if (document.getElementById('modal-link-black-words')) document.getElementById('modal-link-black-words').value = blackWords;
+  if (document.getElementById('modal-link-reserv-mode')) document.getElementById('modal-link-reserv-mode').value = reservMode;
+  if (document.getElementById('modal-link-only-discount')) document.getElementById('modal-link-only-discount').checked = onlyDiscount;
+  if (document.getElementById('modal-link-only-photo')) document.getElementById('modal-link-only-photo').checked = onlyPhoto;
+
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeLinkFilterModal() {
+  const modal = document.getElementById('link-filter-modal');
+  if (modal) modal.style.display = 'none';
+  editingLinkIndex = null;
+}
+
+function saveLinkFilterModal() {
+  if (editingLinkIndex === null) return;
+  const oldItem = currentUrls[editingLinkIndex];
+  const urlStr = typeof oldItem === 'object' ? oldItem.url : oldItem;
+
+  const minP = parseInt(document.getElementById('modal-link-min-price')?.value) || 0;
+  const maxP = parseInt(document.getElementById('modal-link-max-price')?.value) || 99999999;
+  const maxAge = parseInt(document.getElementById('modal-link-max-age')?.value) || 0;
+  const maxAgeUnit = document.getElementById('modal-link-max-age-unit')?.value || 'minutes';
+  const whiteWords = (document.getElementById('modal-link-white-words')?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+  const blackWords = (document.getElementById('modal-link-black-words')?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+  const reservMode = document.getElementById('modal-link-reserv-mode')?.value || 'all';
+  const onlyDiscount = !!document.getElementById('modal-link-only-discount')?.checked;
+  const onlyPhoto = !!document.getElementById('modal-link-only-photo')?.checked;
+
+  currentUrls[editingLinkIndex] = {
+    url: urlStr,
+    min_price: minP,
+    max_price: maxP,
+    max_age: maxAge,
+    max_age_unit: maxAgeUnit,
+    keys_word_white_list: whiteWords,
+    keys_word_black_list: blackWords,
+    reserv_mode: reservMode,
+    only_with_discount: onlyDiscount,
+    only_with_photo: onlyPhoto
+  };
+
+  renderUrlsList();
+  closeLinkFilterModal();
+}
+
+function resetLinkFilterModal() {
+  if (editingLinkIndex === null) return;
+  const oldItem = currentUrls[editingLinkIndex];
+  const urlStr = typeof oldItem === 'object' ? oldItem.url : oldItem;
+  currentUrls[editingLinkIndex] = urlStr;
+  renderUrlsList();
+  closeLinkFilterModal();
 }
 
 function addLinkUrl() {

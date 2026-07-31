@@ -136,6 +136,72 @@
 
     <div class="action-bar">
       <button id="save-btn" class="btn btn-success flex-1" onclick="saveSettings()">💾 Сохранить настройки</button>
+    <!-- Модальное окно персональных фильтров для отдельной ссылки -->
+    <div id="link-filter-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(15,23,42,0.9); backdrop-filter:blur(8px); z-index:9999; align-items:center; justify-content:center; padding:16px;">
+      <div style="background:#1E293B; border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:20px; max-width:400px; width:100%; max-height:85vh; overflow-y:auto; box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <h3 style="font-size:16px; font-weight:700; color:#F8FAFC;">⚙️ Персональный фильтр ссылки</h3>
+          <button type="button" onclick="closeLinkFilterModal()" style="background:transparent; border:none; color:#94A3B8; font-size:20px; cursor:pointer;">×</button>
+        </div>
+        <p id="link-filter-modal-url" style="font-size:11px; color:#60A5FA; word-break:break-all; margin-bottom:14px; background:#0F172A; padding:8px; border-radius:6px; max-height:50px; overflow-y:auto;"></p>
+        
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div>
+            <label style="font-size:12px; color:#94A3B8;">💰 Диапазон цен (₽):</label>
+            <div style="display:flex; gap:8px; margin-top:4px;">
+              <input type="number" id="modal-link-min-price" placeholder="Мин" style="padding:6px 10px; font-size:13px; flex:1;">
+              <input type="number" id="modal-link-max-price" placeholder="Макс" style="padding:6px 10px; font-size:13px; flex:1;">
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size:12px; color:#94A3B8;">⏱️ Макс. возраст объявления:</label>
+            <div style="display:flex; gap:8px; margin-top:4px;">
+              <input type="number" id="modal-link-max-age" placeholder="0" style="padding:6px 10px; font-size:13px; flex:1;">
+              <select id="modal-link-max-age-unit" style="padding:6px 10px; font-size:13px; flex:1;">
+                <option value="minutes">Минуты</option>
+                <option value="hours">Часы</option>
+                <option value="days">Дни</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size:12px; color:#94A3B8;">⚪ Белые слова (через запятую):</label>
+            <input type="text" id="modal-link-white-words" placeholder="i5, ryzen, pro..." style="padding:6px 10px; font-size:13px; margin-top:4px;">
+          </div>
+
+          <div>
+            <label style="font-size:12px; color:#94A3B8;">⚫ Минус-слова (через запятую):</label>
+            <input type="text" id="modal-link-black-words" placeholder="запчасти, сломан, ремонт..." style="padding:6px 10px; font-size:13px; margin-top:4px;">
+          </div>
+
+          <div>
+            <label style="font-size:12px; color:#94A3B8;">📦 Статус доставки / резерва:</label>
+            <select id="modal-link-reserv-mode" style="padding:6px 10px; font-size:13px; margin-top:4px;">
+              <option value="all">🌐 Все объявления</option>
+              <option value="ignore">📦 Скрыть резервированные</option>
+              <option value="only">🚚 Только с доставкой</option>
+            </select>
+          </div>
+
+          <div style="display:flex; gap:12px; margin-top:4px;">
+            <label style="font-size:12px; color:#F8FAFC; display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="modal-link-only-discount"> 🏷️ Со скидкой
+            </label>
+            <label style="font-size:12px; color:#F8FAFC; display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="modal-link-only-photo"> 📷 Только с фото
+            </label>
+          </div>
+
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <button type="button" onclick="saveLinkFilterModal()" style="flex:1; background:#3B82F6; color:white; border:none; padding:10px; border-radius:8px; font-weight:600; font-size:13px; cursor:pointer;">💾 Применить к ссылке</button>
+            <button type="button" onclick="resetLinkFilterModal()" style="background:#334155; color:#F8FAFC; border:none; padding:10px 14px; border-radius:8px; font-size:12px; cursor:pointer;">🔄 Сбросить</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Модальное окно проверки версии и туннеля -->
     <div id="outdated-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(15,23,42,0.9); backdrop-filter:blur(8px); z-index:9999; align-items:center; justify-content:center; padding:16px;">
       <div style="background:#1E293B; border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:24px; max-width:340px; width:100%; text-align:center; box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);">
@@ -149,6 +215,6 @@
       </div>
     </div>
   </div>
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>
