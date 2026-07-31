@@ -120,7 +120,7 @@ async function syncLoadCloud() {
 async function detectAPI() {
   const paramApi = getApiUrlFromParams();
 
-  // Если Mini App открыт по адресу localhost или напрямую по адресу туннеля (trycloudflare, lhr.life, serveo, serveousercontent и т.д.)
+  // 1. Если Mini App открыт по адресу localhost или напрямую по адресу туннеля
   const h = location.hostname;
   if (h === 'localhost' || h === '127.0.0.1' || h.endsWith('trycloudflare.com') || h.endsWith('lhr.life') || h.endsWith('lhrtunnel.link') || h.endsWith('serveo.net') || h.endsWith('serveousercontent.com') || h.endsWith('pinggy.link') || h.endsWith('ngrok-free.app')) {
     API_BASE = '';
@@ -128,10 +128,29 @@ async function detectAPI() {
     return;
   }
 
-  // Если передан api_url в параметрах (при запуске с GitHub Pages)
+  // 2. Если передан api_url в параметрах URL (при открытии по ссылке или через инлайн-кнопки)
   if (paramApi) {
     API_BASE = paramApi;
+    try { localStorage.setItem('last_api_url', paramApi); } catch(e) {}
+    try { if (tg?.CloudStorage?.setItem) tg.CloudStorage.setItem('last_api_url', paramApi); } catch(e) {}
     console.log('[MiniApp] Обнаружен API URL из параметров:', paramApi);
+    return;
+  }
+
+  // 3. Если api_url отсутствует в параметрах (при открытии из кэшированной кнопки меню внизу чата)
+  let storedApi = null;
+  try { storedApi = localStorage.getItem('last_api_url'); } catch(e) {}
+  if (!storedApi && tg?.CloudStorage?.getItem) {
+    storedApi = await new Promise(resolve => {
+      try {
+        tg.CloudStorage.getItem('last_api_url', (err, val) => resolve(err ? null : val));
+      } catch(e) { resolve(null); }
+    });
+  }
+
+  if (storedApi && (storedApi.startsWith('https://') || storedApi.startsWith('http://'))) {
+    API_BASE = storedApi.replace(/\/$/, '');
+    console.log('[MiniApp] Загружен сохраненный API URL из кэша/облака:', API_BASE);
     return;
   }
 
@@ -730,26 +749,12 @@ async function saveSettings() {
     // 1. Сохраняем в локальный кэш + облако Telegram CloudStorage
     syncSaveCloud(payload);
 
-    const tg = window.Telegram?.WebApp;
-    const tgPayload = Object.assign({ action: 'save_config' }, payload);
-
-    // 2. МГНОВЕННЫЙ нативный отправщик Telegram WebApp (не требует туннелей и портов!)
-    if (tg && typeof tg.sendData === 'function') {
-      try {
-        console.log('[MiniApp] Нативная отправка через Telegram.WebApp.sendData()...');
-        tg.sendData(JSON.stringify(tgPayload));
-        savedOnServer = true;
-      } catch(e) {
-        console.warn('[MiniApp] sendData error:', e);
-      }
-    }
-
-    // 3. Параллельный HTTP POST к серверу (для работы из браузера на ПК)
+    // 2. Отправка прямого HTTP POST к серверу (выполняется ВСЕГДА!)
     const targetApi = getTargetApi();
-    if (targetApi !== null && !savedOnServer) {
+    if (targetApi !== null) {
       try {
         const url = (targetApi === '') ? '/api/config' : (targetApi + '/api/config');
-        console.log('[MiniApp] POST к', url);
+        console.log('[MiniApp] HTTP POST к', url);
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 3000);
         const res = await customFetch(url, {
