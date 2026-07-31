@@ -60,12 +60,17 @@ function buildApiUrl(endpoint, params = {}) {
 }
 
 function customFetch(url, options = {}) {
-  options.headers = Object.assign({
-    'Content-Type': 'application/json',
+  const baseHeaders = {
     'Accept': 'application/json',
     'bypass-tunnel-reminder': 'true',
     'ngrok-skip-browser-warning': 'true'
-  }, options.headers || {});
+  };
+  // Content-Type только для POST/PUT — иначе GET вызывает ненужный CORS preflight
+  const method = (options.method || 'GET').toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD') {
+    baseHeaders['Content-Type'] = 'application/json';
+  }
+  options.headers = Object.assign(baseHeaders, options.headers || {});
   return fetch(url, options);
 }
 
@@ -298,11 +303,11 @@ async function loadConfig() {
     }
   }
 
-  // 4. Если сервер не ответил — всё равно обновляем UI подписки (не зависаем на "Загрузка...")
+  // 4. Если сервер не ответил — всё равно обновляем UI подписки
   if (!serverReached) {
     if (subIcon) subIcon.textContent = '📱';
-    if (subTitle) subTitle.textContent = 'Работа через Telegram';
-    if (subDesc) subDesc.textContent = 'Сервер не подключен. Сохранение через бота.';
+    if (subTitle) subTitle.textContent = 'Офлайн режим';
+    if (subDesc) subDesc.textContent = 'Сервер ПК недоступен. Нажмите «Сохранить» — данные отправятся боту.';
     if (saveBtn) {
       saveBtn.disabled = false;
       saveBtn.style.opacity = '1';
@@ -740,7 +745,8 @@ async function saveSettings() {
   btn.disabled = true;
   btn.textContent = '⏳ Сохранение...';
 
-  let savedOnServer = false;
+  let savedViaHttp = false;
+  let sentViaTg = false;
 
   try {
     const payload = collectForm();
@@ -749,14 +755,14 @@ async function saveSettings() {
     // 1. Сохраняем в локальный кэш + облако Telegram CloudStorage
     syncSaveCloud(payload);
 
-    // 2. Отправка прямого HTTP POST к серверу (выполняется ВСЕГДА!)
+    // 2. HTTP POST к серверу (работает из ЛЮБОГО типа кнопки, если api_url доступен)
     const targetApi = getTargetApi();
     if (targetApi !== null) {
       try {
         const url = (targetApi === '') ? '/api/config' : (targetApi + '/api/config');
         console.log('[MiniApp] HTTP POST к', url);
         const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 3000);
+        const timer = setTimeout(() => ctrl.abort(), 5000);
         const res = await customFetch(url, {
           method: 'POST',
           body: JSON.stringify(payload),
@@ -765,35 +771,54 @@ async function saveSettings() {
         clearTimeout(timer);
         if (res.ok) {
           const data = await res.json();
-          if (data && data.ok) savedOnServer = true;
+          if (data && data.ok) savedViaHttp = true;
         }
       } catch(e) {
-        console.warn('[MiniApp] HTTP POST fallback error:', e);
+        console.warn('[MiniApp] HTTP POST error:', e.message);
       }
     }
 
-    // 4. Индикация результата
-    if (savedOnServer) {
-      btn.textContent = '✅ Сохранено!';
-      if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-      if (tg?.close) {
-        setTimeout(() => tg.close(), 400);
+    // 3. Telegram sendData (работает ТОЛЬКО из reply keyboard кнопки, НЕ из inline)
+    //    Используем как резервный канал если HTTP не сработал
+    if (!savedViaHttp) {
+      const tgApp = window.Telegram?.WebApp;
+      if (tgApp && typeof tgApp.sendData === 'function') {
+        try {
+          const tgPayload = Object.assign({ action: 'save_config' }, payload);
+          console.log('[MiniApp] Отправка через Telegram.WebApp.sendData()...');
+          tgApp.sendData(JSON.stringify(tgPayload));
+          sentViaTg = true;
+          // sendData() закрывает Mini App, дальнейший код не выполнится
+        } catch(e) {
+          console.warn('[MiniApp] sendData error:', e.message);
+        }
       }
+    }
+
+    // 4. Результат
+    if (savedViaHttp) {
+      btn.textContent = '✅ Сохранено на сервер!';
+      btn.style.background = '#10B981';
+      if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+    } else if (sentViaTg) {
+      // Mini App уже закрыт sendData(), этот код не выполнится
+      return;
     } else {
-      btn.textContent = '⚠️ Нет связи';
+      btn.textContent = '⚠️ Сервер недоступен';
+      btn.style.background = '#EF4444';
       if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
-      alert('⚠️ Не удалось передать настройки в Telegram бот.\nУбедитесь, что вы открыли Mini App через кнопку в Telegram!');
+      alert('⚠️ Не удалось передать настройки.\n\n• Убедитесь что программа запущена на ПК\n• Попробуйте открыть Mini App заново из бота');
     }
   } catch(err) {
-    console.error('[MiniApp] Ошибка функции сохранения:', err);
-    btn.textContent = '⚠️ Ошибка!';
+    console.error('[MiniApp] Ошибка сохранения:', err);
+    btn.textContent = '❌ Ошибка!';
     alert('❌ Ошибка сохранения: ' + err.message);
   } finally {
-    // В любом случае разблокируем кнопку через 2.5 сек
     setTimeout(() => {
       if (btn) {
         btn.disabled = false;
         btn.textContent = '💾 Сохранить настройки';
+        btn.style.background = '';
       }
     }, 2500);
   }
