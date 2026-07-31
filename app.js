@@ -181,28 +181,39 @@ async function loadConfig() {
   if (badge) badge.textContent = userName ? ('👋 ' + userName) : '📱 Mini App';
   if (badge) badge.className = 'badge badge-active';
 
-  // 2. В фоновом режиме подгружаем данные из облака Telegram CloudStorage (для новых устройств)
-  const cloudCfg = await syncLoadCloud();
-  if (cloudCfg) {
-    const localTs = currentCfg.updated_at || 0;
-    const cloudTs = cloudCfg.updated_at || 0;
-    if (cloudTs >= localTs && cloudCfg.urls) {
-      currentCfg = cloudCfg;
-      fillForm(currentCfg);
-      saveLocal(currentCfg);
+  // 2. Подгружаем из Telegram CloudStorage (с таймаутом 2сек — не зависаем)
+  try {
+    const cloudCfg = await Promise.race([
+      syncLoadCloud(),
+      new Promise(resolve => setTimeout(() => resolve(null), 2000))
+    ]);
+    if (cloudCfg && cloudCfg.urls) {
+      const localTs = currentCfg.updated_at || 0;
+      const cloudTs = cloudCfg.updated_at || 0;
+      if (cloudTs >= localTs) {
+        currentCfg = cloudCfg;
+        fillForm(currentCfg);
+        saveLocal(currentCfg);
+        console.log('[MiniApp] ☁️ Синхронизовали из Telegram CloudStorage');
+      }
     }
+  } catch(e) {
+    console.warn('[MiniApp] CloudStorage не удался:', e);
   }
 
   await detectAPI();
   updateUserIdDisplay();
 
-  // 3. Запрашиваем сервер ПК для получения самой свежей БД пользователя
+  // 3. Запрашиваем сервер ПК — самая свежая БД
   const targetApi = getTargetApi();
-  if (userId && userId > 0) {
+  let serverReached = false;
+
+  if (userId && userId > 0 && targetApi !== null) {
     try {
       const url = buildApiUrl('/api/config', { user_id: userId });
+      console.log('[MiniApp] Запрос к серверу:', url);
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 4000);
+      const timer = setTimeout(() => ctrl.abort(), 5000);
       const res = await customFetch(url, {
         method: 'GET',
         signal: ctrl.signal
@@ -214,14 +225,16 @@ async function loadConfig() {
         try {
           data = JSON.parse(text);
         } catch(err) {
-          console.warn('[MiniApp] Ошибка парсинга JSON от сервера:', text.slice(0, 100));
+          console.warn('[MiniApp] Ответ не JSON:', text.slice(0, 200));
         }
 
         if (data && data.ok) {
+          serverReached = true;
           const serverCfg = data.config || {};
           const serverTs = serverCfg.updated_at || 0;
           const localTs = currentCfg.updated_at || 0;
 
+          // Сервер — главный источник истины, если есть хоть какие-то данные
           if (serverTs >= localTs || !currentCfg.urls || currentCfg.urls.length === 0) {
             currentCfg = serverCfg;
             fillForm(currentCfg);
@@ -229,11 +242,12 @@ async function loadConfig() {
           }
 
           isSubActive = !!data.is_sub_active;
+          const subExpiresAt = data.sub_expires_at;
 
           if (isSubActive) {
             if (subIcon) subIcon.textContent = '🟢';
             if (subTitle) subTitle.textContent = 'Подписка активна!';
-            if (subDesc) subDesc.textContent = 'До: ' + (data.sub_expires_at ? data.sub_expires_at.slice(0,10) : 'Бессрочно');
+            if (subDesc) subDesc.textContent = 'До: ' + (subExpiresAt ? String(subExpiresAt).slice(0,10) : 'Бессрочно');
             if (saveBtn) {
               saveBtn.disabled = false;
               saveBtn.style.opacity = '1';
@@ -257,25 +271,35 @@ async function loadConfig() {
             pcStatus.textContent = '🟢 Активно';
             pcStatus.style.color = 'var(--success-color)';
           }
-          return;
         }
       }
     } catch(e) {
-      console.warn('[MiniApp] Загрузка конфига с сервера не удалась:', e.message);
+      console.warn('[MiniApp] Сервер недоступен:', e.message);
     }
   }
 
-  // Если получение с сервера в процессе или временно недоступно — показываем активную систему через Telegram
-  if (subTitle && (subTitle.textContent === '⏳ Загрузка...' || !subTitle.textContent)) {
-    if (subIcon) subIcon.textContent = '🟢';
-    if (subTitle) subTitle.textContent = 'Подписка активна';
-    if (subDesc) subDesc.textContent = 'Связь с ботом через Telegram';
-  }
+  // 4. Если сервер не ответил — всё равно обновляем UI подписки (не зависаем на "Загрузка...")
+  if (!serverReached) {
+    if (subIcon) subIcon.textContent = '📱';
+    if (subTitle) subTitle.textContent = 'Работа через Telegram';
+    if (subDesc) subDesc.textContent = 'Сервер не подключен. Сохранение через бота.';
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.style.opacity = '1';
+      saveBtn.style.cursor = 'pointer';
+      saveBtn.textContent = '💾 Сохранить настройки';
+    }
 
-  const pcStatus = document.getElementById('pc-api-status-label');
-  if (pcStatus) {
-    pcStatus.textContent = '🟢 Активно';
-    pcStatus.style.color = 'var(--success-color)';
+    const pcStatus = document.getElementById('pc-api-status-label');
+    if (pcStatus) {
+      if (targetApi === null) {
+        pcStatus.textContent = '⚠️ Нет ссылки на сервер';
+        pcStatus.style.color = '#F59E0B';
+      } else {
+        pcStatus.textContent = '🔴 Недоступен';
+        pcStatus.style.color = '#EF4444';
+      }
+    }
   }
 }
 
@@ -464,7 +488,8 @@ function addLinkUrl() {
     return;
   }
 
-  if (currentUrls.includes(url)) {
+  const existingUrls = currentUrls.map(u => (typeof u === 'object' && u !== null) ? u.url : u);
+  if (existingUrls.includes(url)) {
     alert('Эта ссылка уже добавлена!');
     return;
   }
