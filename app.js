@@ -22,6 +22,7 @@ function resolveUserId() {
 
 let userId = resolveUserId();
 const userName = window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || '';
+const userUsername = window.Telegram?.WebApp?.initDataUnsafe?.user?.username || '';
 const STORAGE_KEY = 'avito_parser_config';
 let API_BASE = null;
 let currentUrls = [];
@@ -549,6 +550,8 @@ function collectForm() {
 
   return {
     user_id: userId,
+    first_name: userName,
+    username: userUsername,
     updated_at: Date.now(),
     urls: Array.isArray(currentUrls) ? currentUrls : [],
     min_price: parseVal('min-price', 0),
