@@ -62,6 +62,7 @@ function buildApiUrl(endpoint, params = {}) {
 function customFetch(url, options = {}) {
   const baseHeaders = {
     'Accept': 'application/json',
+    'X-Telegram-Init-Data': tg?.initData || '',
     'bypass-tunnel-reminder': 'true',
     'ngrok-skip-browser-warning': 'true'
   };
